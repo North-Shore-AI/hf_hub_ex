@@ -7,7 +7,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/North-Shore-AI/hf_hub_ex/ci.yml?branch=main)](https://github.com/North-Shore-AI/hf_hub_ex/actions)
 [![License](https://img.shields.io/hexpm/l/hf_hub.svg)](https://github.com/North-Shore-AI/hf_hub_ex/blob/main/LICENSE)
 
-**Elixir client for HuggingFace Hub** — dataset/model metadata, file downloads, caching, and authentication. The BEAM-native foundation for HuggingFace ecosystem ports.
+**Elixir client for [HuggingFace Hub](https://huggingface.co)** — dataset/model metadata, file downloads, caching, and authentication. An Elixir port of Python's [`huggingface_hub`](https://github.com/huggingface/huggingface_hub).
 
 `hf_hub_ex` provides a robust, production-ready interface to the HuggingFace Hub API, enabling Elixir applications to seamlessly access models, datasets, and spaces. This library is designed to be the foundational layer for porting Python HuggingFace libraries (datasets, evaluate, transformers) to the BEAM ecosystem.
 
