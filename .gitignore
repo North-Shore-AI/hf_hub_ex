@@ -50,3 +50,4 @@ coverage/
 
 # Local cache for development
 /.cache/
+/huggingface_hub/

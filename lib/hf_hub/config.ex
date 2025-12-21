@@ -23,7 +23,11 @@ defmodule HfHub.Config do
   @doc """
   Gets the cache directory path.
 
-  Defaults to "~/.cache/huggingface".
+  Checks in order:
+  1. Application configuration
+  2. HF_HUB_CACHE environment variable
+  3. HF_HOME environment variable
+  4. Default: "~/.cache/huggingface"
 
   ## Examples
 
@@ -32,7 +36,19 @@ defmodule HfHub.Config do
   """
   @spec cache_dir() :: Path.t()
   def cache_dir do
-    Application.get_env(:hf_hub, :cache_dir, default_cache_dir())
+    cond do
+      dir = Application.get_env(:hf_hub, :cache_dir) ->
+        Path.expand(dir)
+
+      dir = System.get_env("HF_HUB_CACHE") ->
+        Path.expand(dir)
+
+      dir = System.get_env("HF_HOME") ->
+        Path.join(Path.expand(dir), "hub")
+
+      true ->
+        default_cache_dir()
+    end
   end
 
   @doc """

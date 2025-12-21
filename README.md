@@ -100,7 +100,7 @@ IO.inspect(model_info.tags)        # ["pytorch", "bert", "fill-mask"]
 
 ```elixir
 # Check if a file is cached
-cached? = HfHub.Cache.is_cached?(
+cached? = HfHub.Cache.cached?(
   repo_id: "bert-base-uncased",
   filename: "pytorch_model.bin"
 )
@@ -114,6 +114,27 @@ IO.inspect(stats.total_size)  # Total bytes in cache
 IO.inspect(stats.file_count)  # Number of cached files
 ```
 
+## Examples
+
+The `examples/` directory contains runnable scripts demonstrating common use cases:
+
+```bash
+# Run all examples at once
+./examples/run_all.sh
+
+# Or run individual examples:
+mix run examples/list_datasets.exs      # List top datasets
+mix run examples/list_models.exs        # List popular models
+mix run examples/dataset_info.exs       # Get dataset metadata
+mix run examples/download_file.exs      # Download a single file
+mix run examples/cache_demo.exs         # Cache management demo
+mix run examples/stream_download.exs    # Stream large files
+mix run examples/snapshot_download.exs  # Download entire repo
+mix run examples/auth_demo.exs          # Authentication flow
+```
+
+See the [examples README](examples/README.md) for detailed documentation.
+
 ## API Overview
 
 ### HfHub.Api
@@ -126,6 +147,7 @@ Interact with the HuggingFace Hub API:
 - `list_models/1` — List models with filters
 - `list_datasets/1` — List datasets with filters
 - `list_files/2` — List files in a repository
+- `dataset_configs/2` — Get dataset configuration/subset names
 
 ### HfHub.Download
 
@@ -140,11 +162,12 @@ Download files from HuggingFace repositories:
 
 Manage local file cache:
 
-- `is_cached?/1` — Check if file exists in cache
+- `cached?/1` — Check if file exists in cache
 - `cache_path/1` — Get local path for cached file
 - `clear_cache/1` — Remove cached files
 - `cache_stats/0` — Get cache usage statistics
 - `evict_lru/1` — Evict least recently used files
+- `validate_integrity/0` — Validate checksums of cached files
 
 ### HfHub.FS
 
@@ -152,8 +175,19 @@ Filesystem utilities for HuggingFace cache:
 
 - `ensure_cache_dir/0` — Create cache directory structure
 - `repo_path/2` — Get local path for repository
-- `file_path/3` — Get local path for file in repository
+- `file_path/4` — Get local path for file in repository
 - `lock_file/2` — Acquire file lock for concurrent downloads
+- `unlock_file/1` — Release a file lock
+- `cache_dir/0` — Get configured cache directory
+
+### HfHub.Config
+
+Configuration utilities:
+
+- `endpoint/0` — Get HuggingFace Hub endpoint URL
+- `cache_dir/0` — Get cache directory path
+- `http_opts/0` — Get HTTP client options
+- `cache_opts/0` — Get cache options
 
 ### HfHub.Auth
 
@@ -164,6 +198,8 @@ Authentication and authorization:
 - `login/1` — Interactive login flow
 - `logout/0` — Remove stored credentials
 - `whoami/0` — Get current user information
+- `validate_token/1` — Validate token format
+- `auth_headers/1` — Build HTTP authorization headers
 
 ## Configuration
 
@@ -224,6 +260,8 @@ config :hf_hub,
 - [ ] Inference API client
 - [ ] WebSocket support for real-time inference
 - [ ] Integration with `crucible_datasets` for dataset loading
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed feature parity status with Python `huggingface_hub`.
 
 ## Contributing
 

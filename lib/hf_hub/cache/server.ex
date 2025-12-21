@@ -10,6 +10,18 @@ defmodule HfHub.Cache.Server do
 
   # Client API
 
+  @doc """
+  Starts the cache server.
+
+  ## Options
+
+    * `:name` - The name to register the server under. Defaults to `HfHub.Cache.Server`.
+
+  ## Examples
+
+      {:ok, pid} = HfHub.Cache.Server.start_link()
+  """
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end

@@ -67,7 +67,7 @@ defmodule HfHub.MixProject do
         "GitHub" => @source_url,
         "HuggingFace" => "https://huggingface.co"
       },
-      files: ~w(lib mix.exs README.md LICENSE CHANGELOG.md assets/hf_hub_ex.svg)
+      files: ~w(lib assets mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
@@ -76,8 +76,9 @@ defmodule HfHub.MixProject do
       main: "readme",
       source_ref: "v#{@version}",
       source_url: @source_url,
+      assets: %{"assets" => "assets"},
       logo: "assets/hf_hub_ex.svg",
-      extras: ["README.md", "CHANGELOG.md", "LICENSE"],
+      extras: ["README.md", "CHANGELOG.md", "LICENSE", "docs/ROADMAP.md"],
       groups_for_modules: [
         "Core API": [
           HfHub.Api,
@@ -94,7 +95,7 @@ defmodule HfHub.MixProject do
         ]
       ],
       groups_for_extras: [
-        Documentation: ["README.md"],
+        Documentation: ["README.md", "docs/ROADMAP.md"],
         Changelog: ["CHANGELOG.md"],
         License: ["LICENSE"]
       ]

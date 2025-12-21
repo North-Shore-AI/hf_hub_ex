@@ -33,8 +33,12 @@ defmodule HfHub.FS do
   """
   @spec ensure_cache_dir() :: :ok | {:error, term()}
   def ensure_cache_dir do
-    # TODO: Implement cache directory creation
-    {:error, :not_implemented}
+    dir = cache_dir()
+
+    case File.mkdir_p(dir) do
+      :ok -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc """
@@ -52,8 +56,12 @@ defmodule HfHub.FS do
   """
   @spec repo_path(HfHub.repo_id(), HfHub.repo_type()) :: Path.t()
   def repo_path(repo_id, repo_type) do
-    # TODO: Implement repo path construction
-    ""
+    # Convert repo_id slashes to double dashes for filesystem safety
+    # e.g., "openai/gpt-2" becomes "models--openai--gpt-2"
+    repo_dir = String.replace(repo_id, "/", "--")
+    type_prefix = Atom.to_string(repo_type) <> "s"
+
+    Path.join([cache_dir(), "hub", "#{type_prefix}--#{repo_dir}"])
   end
 
   @doc """
@@ -64,16 +72,18 @@ defmodule HfHub.FS do
     * `repo_id` - Repository ID
     * `repo_type` - Type of repository
     * `filename` - Name of the file
+    * `revision` - Git revision (defaults to "main")
 
   ## Examples
 
       path = HfHub.FS.file_path("bert-base-uncased", :model, "config.json")
       # => "/home/user/.cache/huggingface/hub/models--bert-base-uncased/snapshots/main/config.json"
   """
-  @spec file_path(HfHub.repo_id(), HfHub.repo_type(), HfHub.filename()) :: Path.t()
-  def file_path(repo_id, repo_type, filename) do
-    # TODO: Implement file path construction
-    ""
+  @spec file_path(HfHub.repo_id(), HfHub.repo_type(), HfHub.filename(), HfHub.revision()) ::
+          Path.t()
+  def file_path(repo_id, repo_type, filename, revision \\ "main") do
+    repo = repo_path(repo_id, repo_type)
+    Path.join([repo, "snapshots", revision, filename])
   end
 
   @doc """
@@ -94,8 +104,25 @@ defmodule HfHub.FS do
   """
   @spec lock_file(HfHub.repo_id(), HfHub.filename()) :: {:ok, reference()} | {:error, term()}
   def lock_file(repo_id, filename) do
-    # TODO: Implement file locking
-    {:error, :not_implemented}
+    lock_path = Path.join([cache_dir(), "locks", "#{repo_id}--#{filename}.lock"])
+    lock_dir = Path.dirname(lock_path)
+
+    with :ok <- File.mkdir_p(lock_dir),
+         {:ok, file} <- File.open(lock_path, [:write, :exclusive]) do
+      # Create a reference to track this lock
+      lock_ref = make_ref()
+      # Store the file handle and path in the process dictionary
+      Process.put({:lock, lock_ref}, {file, lock_path})
+      {:ok, lock_ref}
+    else
+      {:error, :eexist} ->
+        # Lock file already exists, retry after a short delay
+        Process.sleep(100)
+        lock_file(repo_id, filename)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -112,8 +139,16 @@ defmodule HfHub.FS do
   """
   @spec unlock_file(reference()) :: :ok | {:error, term()}
   def unlock_file(lock) do
-    # TODO: Implement unlock
-    {:error, :not_implemented}
+    case Process.get({:lock, lock}) do
+      {file, lock_path} ->
+        File.close(file)
+        File.rm(lock_path)
+        Process.delete({:lock, lock})
+        :ok
+
+      nil ->
+        {:error, :invalid_lock}
+    end
   end
 
   @doc """

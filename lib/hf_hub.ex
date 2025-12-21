@@ -26,7 +26,7 @@ defmodule HfHub do
       )
 
       # Check cache
-      cached? = HfHub.Cache.is_cached?(
+      cached? = HfHub.Cache.cached?(
         repo_id: "bert-base-uncased",
         filename: "config.json"
       )

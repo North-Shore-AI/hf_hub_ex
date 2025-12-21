@@ -88,8 +88,31 @@ defmodule HfHub.Auth do
   """
   @spec login(keyword()) :: :ok | {:error, term()}
   def login(opts \\ []) do
-    # TODO: Implement login flow
-    {:error, :not_implemented}
+    token = Keyword.get(opts, :token)
+    validate = Keyword.get(opts, :validate, false)
+
+    cond do
+      is_nil(token) ->
+        {:error, :token_required}
+
+      validate_token(token) != :ok ->
+        {:error, :invalid_token}
+
+      validate ->
+        # Validate token with API
+        case do_whoami(token) do
+          {:ok, _user} ->
+            set_token(token)
+            :ok
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      true ->
+        set_token(token)
+        :ok
+    end
   end
 
   @doc """
@@ -118,9 +141,41 @@ defmodule HfHub.Auth do
   """
   @spec whoami() :: {:ok, user_info()} | {:error, term()}
   def whoami do
-    # TODO: Implement API call to get user info
-    {:error, :not_implemented}
+    case get_token() do
+      {:ok, token} -> do_whoami(token)
+      {:error, :no_token} -> {:error, :no_token}
+    end
   end
+
+  defp do_whoami(token) do
+    case HfHub.HTTP.get("/api/whoami-v2", token: token) do
+      {:ok, data} ->
+        user = %{
+          username: Map.get(data, "name"),
+          email: Map.get(data, "email"),
+          fullname: Map.get(data, "fullname"),
+          organizations: parse_organizations(Map.get(data, "orgs", []))
+        }
+
+        {:ok, user}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp parse_organizations(orgs) when is_list(orgs) do
+    Enum.map(orgs, fn org ->
+      case org do
+        %{"name" => name} -> name
+        name when is_binary(name) -> name
+        _ -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_organizations(_), do: []
 
   @doc """
   Validates a token.
@@ -138,7 +193,45 @@ defmodule HfHub.Auth do
   """
   @spec validate_token(String.t()) :: :ok | {:error, term()}
   def validate_token(token) when is_binary(token) do
-    # TODO: Implement token validation
-    {:error, :not_implemented}
+    if String.starts_with?(token, "hf_") and String.length(token) > 10 do
+      :ok
+    else
+      {:error, :invalid_token}
+    end
+  end
+
+  @doc """
+  Builds HTTP authorization headers from the current or provided token.
+
+  ## Options
+
+    * `:token` - Token to use. If not provided, uses get_token/0.
+
+  ## Examples
+
+      {:ok, headers} = HfHub.Auth.auth_headers()
+      # => {:ok, [{"authorization", "Bearer hf_..."}]}
+
+      {:ok, headers} = HfHub.Auth.auth_headers(token: "hf_custom")
+  """
+  @spec auth_headers(keyword()) :: {:ok, [{String.t(), String.t()}]} | {:error, term()}
+  def auth_headers(opts \\ []) do
+    token =
+      case Keyword.get(opts, :token) do
+        nil ->
+          case get_token() do
+            {:ok, t} -> t
+            {:error, _} -> nil
+          end
+
+        t ->
+          t
+      end
+
+    if token do
+      {:ok, [{"authorization", "Bearer #{token}"}]}
+    else
+      {:ok, []}
+    end
   end
 end
