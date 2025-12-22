@@ -12,6 +12,7 @@ defmodule HfHub.AuthTest do
     on_exit(fn ->
       if original_token_env, do: System.put_env("HF_TOKEN", original_token_env)
       Application.delete_env(:hf_hub, :token)
+      Application.delete_env(:hf_hub, :endpoint)
     end)
 
     {:ok, bypass: bypass}
