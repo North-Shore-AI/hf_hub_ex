@@ -34,6 +34,8 @@ defmodule HfHub.Download do
           revision: HfHub.revision(),
           cache_dir: Path.t(),
           force_download: boolean(),
+          extract: boolean(),
+          extract_dir: Path.t(),
           token: String.t() | nil
         ]
 
@@ -50,6 +52,8 @@ defmodule HfHub.Download do
     * `:revision` - Git revision. Defaults to `"main"`.
     * `:cache_dir` - Local cache directory. Defaults to configured cache directory.
     * `:force_download` - Force re-download even if cached. Defaults to `false`.
+    * `:extract` - Extract archives after download. Defaults to `false`.
+    * `:extract_dir` - Destination for extracted files (directory for archives, file path for .gz).
     * `:token` - Authentication token.
 
   ## Examples
@@ -78,12 +82,17 @@ defmodule HfHub.Download do
     # Check if file is already cached
     cache_path = HfHub.FS.file_path(repo_id, repo_type, filename, revision)
 
-    if File.exists?(cache_path) and not force_download do
-      {:ok, cache_path}
-    else
-      # Download the file
-      url = build_download_url(repo_id, repo_type, filename, revision)
-      do_download_file(url, cache_path, token)
+    result =
+      if File.exists?(cache_path) and not force_download do
+        {:ok, cache_path}
+      else
+        # Download the file
+        url = build_download_url(repo_id, repo_type, filename, revision)
+        do_download_file(url, cache_path, token)
+      end
+
+    with {:ok, path} <- result do
+      maybe_extract(path, opts)
     end
   end
 
@@ -268,11 +277,38 @@ defmodule HfHub.Download do
   end
 
   defp build_stream_headers(token) do
-    base = [{"user-agent", "hf_hub_ex/0.1.0"}]
+    base = [{"user-agent", "hf_hub_ex/0.1.1"}]
 
     case token || get_token() do
       nil -> base
       t -> [{"authorization", "Bearer #{t}"} | base]
+    end
+  end
+
+  defp maybe_extract(path, opts) do
+    if Keyword.get(opts, :extract, false) do
+      case HfHub.Extract.detect_archive_type(path) do
+        nil ->
+          {:ok, path}
+
+        _type ->
+          dest = extract_destination(path, opts)
+
+          if File.exists?(dest) do
+            {:ok, dest}
+          else
+            HfHub.Extract.extract(path, dest)
+          end
+      end
+    else
+      {:ok, path}
+    end
+  end
+
+  defp extract_destination(path, opts) do
+    case Keyword.get(opts, :extract_dir) do
+      nil -> HfHub.Extract.default_extract_path(path)
+      dir -> dir
     end
   end
 

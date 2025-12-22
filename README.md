@@ -18,7 +18,9 @@
 ## Features
 
 - **Hub API Client** — Fetch metadata for models, datasets, and spaces
+- **Repo Tree Listing** — Recursive tree listing with pagination
 - **File Downloads** — Stream files from HuggingFace repositories with resume support
+- **Archive Extraction** — Optional extraction for zip/tar.gz/tgz/tar.xz/gz files
 - **Smart Caching** — Local file caching with LRU eviction and integrity checks
 - **Filesystem Utilities** — Manage local HuggingFace cache directory structure
 - **Authentication** — Token-based authentication for private repositories
@@ -32,7 +34,7 @@ Add `hf_hub` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:hf_hub, "~> 0.1.0"}
+    {:hf_hub, "~> 0.1.1"}
   ]
 end
 ```
@@ -84,6 +86,14 @@ IO.inspect(model_info.tags)        # ["pytorch", "bert", "fill-mask"]
 
 # Read the downloaded file
 {:ok, config} = File.read(path)
+
+# Download and extract an archive (returns extracted path)
+{:ok, extracted_path} = HfHub.Download.hf_hub_download(
+  repo_id: "albertvillanova/tmp-tests-zip",
+  filename: "ds.zip",
+  repo_type: :dataset,
+  extract: true
+)
 ```
 
 ### Accessing Datasets
@@ -98,6 +108,14 @@ IO.inspect(model_info.tags)        # ["pytorch", "bert", "fill-mask"]
   filename: "train-v1.1.json",
   repo_type: :dataset
 )
+
+# Discover configs and splits
+{:ok, configs} = HfHub.Api.dataset_configs("dpdl-benchmark/caltech101")
+{:ok, splits} = HfHub.Api.dataset_splits("dpdl-benchmark/caltech101", config: "default")
+
+# Resolve file paths for a config + split
+{:ok, files} =
+  HfHub.DatasetFiles.resolve("dpdl-benchmark/caltech101", "default", "train")
 ```
 
 ### Cache Management
@@ -130,7 +148,11 @@ The `examples/` directory contains runnable scripts demonstrating common use cas
 mix run examples/list_datasets.exs      # List top datasets
 mix run examples/list_models.exs        # List popular models
 mix run examples/dataset_info.exs       # Get dataset metadata
+mix run examples/list_repo_tree.exs     # List repo tree entries
+mix run examples/dataset_configs_splits.exs  # Dataset configs + splits
+mix run examples/dataset_files_resolver.exs  # Resolve dataset files by config + split
 mix run examples/download_file.exs      # Download a single file
+mix run examples/download_with_extract.exs   # Download + extract archives
 mix run examples/cache_demo.exs         # Cache management demo
 mix run examples/stream_download.exs    # Stream large files
 mix run examples/snapshot_download.exs  # Download entire repo
@@ -150,17 +172,26 @@ Interact with the HuggingFace Hub API:
 - `space_info/2` — Fetch space metadata
 - `list_models/1` — List models with filters
 - `list_datasets/1` — List datasets with filters
+- `list_repo_tree/2` — List repo tree entries (files + folders)
 - `list_files/2` — List files in a repository
 - `dataset_configs/2` — Get dataset configuration/subset names
+- `dataset_splits/2` — Get dataset split names for a config
 
 ### HfHub.Download
 
 Download files from HuggingFace repositories:
 
-- `hf_hub_download/1` — Download a single file (with caching)
+- `hf_hub_download/1` — Download a single file (with caching, optional extraction)
 - `snapshot_download/1` — Download entire repository snapshot
 - `download_stream/1` — Stream download for large files
 - `resume_download/1` — Resume interrupted downloads
+
+### HfHub.DatasetFiles
+
+Resolve dataset files by config and split:
+
+- `resolve/4` — Resolve file paths by config + split
+- `resolve_from_tree/3` — Resolve file paths from a repo tree
 
 ### HfHub.Cache
 

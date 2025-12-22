@@ -42,7 +42,11 @@ mix run examples/<example_name>.exs
 | `list_datasets.exs` | List top datasets from HuggingFace Hub sorted by downloads |
 | `list_models.exs` | List popular models with filtering options |
 | `dataset_info.exs` | Fetch detailed metadata for a specific dataset |
+| `list_repo_tree.exs` | List repo tree entries (files + folders) |
+| `dataset_configs_splits.exs` | List dataset configs and splits with fallback |
+| `dataset_files_resolver.exs` | Resolve dataset file paths for config + split |
 | `download_file.exs` | Download a single file from a repository |
+| `download_with_extract.exs` | Download and extract an archive file |
 | `cache_demo.exs` | Demonstrate cache management and statistics |
 | `stream_download.exs` | Stream large files with progress tracking |
 | `snapshot_download.exs` | Download entire repository with pattern filtering |
@@ -74,12 +78,44 @@ Fetches and displays detailed metadata for a specific dataset.
 mix run examples/dataset_info.exs
 ```
 
+### list_repo_tree.exs
+
+Lists files and folders at the root of a repository.
+
+```bash
+mix run examples/list_repo_tree.exs
+```
+
+### dataset_configs_splits.exs
+
+Lists dataset configs and splits with fallback inference.
+
+```bash
+mix run examples/dataset_configs_splits.exs
+```
+
+### dataset_files_resolver.exs
+
+Resolves dataset files for a config + split.
+
+```bash
+mix run examples/dataset_files_resolver.exs
+```
+
 ### download_file.exs
 
 Downloads a single file (e.g., `config.json`) from a model repository.
 
 ```bash
 mix run examples/download_file.exs
+```
+
+### download_with_extract.exs
+
+Downloads and extracts a small archive file.
+
+```bash
+mix run examples/download_with_extract.exs
 ```
 
 ### cache_demo.exs

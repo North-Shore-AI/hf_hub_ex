@@ -63,6 +63,35 @@ defmodule HfHub.HTTP do
   end
 
   @doc """
+  Makes a paginated GET request and collects all pages.
+
+  Pagination follows the `Link` header with `rel="next"`.
+
+  ## Options
+
+    * `:token` - Authentication token
+    * `:headers` - Additional headers
+    * `:params` - Query parameters
+  """
+  @spec get_paginated(String.t(), keyword()) :: {:ok, [map()]} | {:error, term()}
+  def get_paginated(path, opts \\ []) do
+    url = build_url(path)
+    headers = build_headers(opts)
+    params = Keyword.get(opts, :params, [])
+
+    http_opts = Config.http_opts()
+
+    req_opts = [
+      headers: headers,
+      params: params,
+      receive_timeout: http_opts[:receive_timeout],
+      decode_json: [keys: :strings]
+    ]
+
+    do_get_paginated(url, req_opts, [])
+  end
+
+  @doc """
   Makes a POST request to the HuggingFace Hub API.
 
   ## Arguments
@@ -212,7 +241,7 @@ defmodule HfHub.HTTP do
 
   defp build_headers(opts) do
     base_headers = [
-      {"user-agent", "hf_hub_ex/0.1.0"}
+      {"user-agent", "hf_hub_ex/0.1.1"}
     ]
 
     custom_headers = Keyword.get(opts, :headers, [])
@@ -221,4 +250,99 @@ defmodule HfHub.HTTP do
 
     base_headers ++ auth_headers ++ custom_headers
   end
+
+  defp do_get_paginated(url, req_opts, acc) do
+    case Req.get(url, req_opts) do
+      {:ok, %Req.Response{status: status, body: body, headers: headers}} when status in 200..299 ->
+        if is_list(body) do
+          next_url = next_link(headers)
+
+          next_url =
+            if next_url && not String.starts_with?(next_url, "http"),
+              do: build_url(next_url),
+              else: next_url
+
+          new_acc = acc ++ body
+
+          if next_url do
+            next_opts = Keyword.delete(req_opts, :params)
+            do_get_paginated(next_url, next_opts, new_acc)
+          else
+            {:ok, new_acc}
+          end
+        else
+          {:error, :invalid_response}
+        end
+
+      {:ok, %Req.Response{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %Req.Response{status: 401}} ->
+        {:error, :unauthorized}
+
+      {:ok, %Req.Response{status: 403}} ->
+        {:error, :forbidden}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, {:http_error, status, body}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp next_link(headers) do
+    headers
+    |> Enum.find_value(fn {key, value} ->
+      if String.downcase(to_string(key)) == "link" do
+        parse_next_link(value)
+      end
+    end)
+  end
+
+  defp parse_next_link(value) when is_binary(value) do
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.find_value(fn part ->
+      [url_part | params] = String.split(part, ";")
+
+      rel =
+        params
+        |> Enum.map(&String.trim/1)
+        |> Enum.find_value(&parse_rel_param/1)
+
+      if rel == "next" do
+        extract_link_url(url_part)
+      end
+    end)
+  end
+
+  defp parse_next_link(value) when is_list(value) do
+    value
+    |> Enum.find_value(&parse_next_link/1)
+  end
+
+  defp parse_next_link(_), do: nil
+
+  defp parse_rel_param(param) do
+    case String.split(param, "=", parts: 2) do
+      ["rel", value] ->
+        value
+        |> String.trim()
+        |> String.trim("\"")
+        |> String.downcase()
+
+      _ ->
+        nil
+    end
+  end
+
+  defp extract_link_url("<" <> rest) do
+    rest
+    |> String.trim()
+    |> String.trim_trailing(">")
+  end
+
+  defp extract_link_url(value), do: String.trim(value)
 end

@@ -110,6 +110,43 @@ defmodule HfHub.HTTPTest do
     end
   end
 
+  describe "get_paginated/2" do
+    test "collects all pages via Link headers", %{bypass: bypass} do
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      Bypass.expect(bypass, "GET", "/api/list", fn conn ->
+        count = Agent.get_and_update(counter, fn n -> {n, n + 1} end)
+
+        case count do
+          0 ->
+            assert conn.query_string == "limit=2"
+
+            conn
+            |> Plug.Conn.put_resp_header(
+              "link",
+              "<http://localhost:#{bypass.port}/api/list?limit=2&offset=2>; rel=\"next\""
+            )
+            |> Plug.Conn.put_resp_content_type("application/json")
+            |> Plug.Conn.resp(200, Jason.encode!([%{"id" => 1}, %{"id" => 2}]))
+
+          1 ->
+            assert conn.query_string == "limit=2&offset=2"
+
+            conn
+            |> Plug.Conn.put_resp_content_type("application/json")
+            |> Plug.Conn.resp(200, Jason.encode!([%{"id" => 3}]))
+
+          _ ->
+            Plug.Conn.resp(conn, 500, "Unexpected request")
+        end
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/list"
+      assert {:ok, results} = HfHub.HTTP.get_paginated(url, params: [limit: 2])
+      assert Enum.map(results, & &1["id"]) == [1, 2, 3]
+    end
+  end
+
   describe "download_file/3" do
     test "downloads file successfully", %{bypass: bypass} do
       content = "Hello, World!"

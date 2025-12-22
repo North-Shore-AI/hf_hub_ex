@@ -1,7 +1,7 @@
 defmodule HfHub.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.1.1"
   @source_url "https://github.com/North-Shore-AI/hf_hub_ex"
 
   def project do
@@ -83,6 +83,8 @@ defmodule HfHub.MixProject do
         "Core API": [
           HfHub.Api,
           HfHub.Download,
+          HfHub.DatasetFiles,
+          HfHub.Extract,
           HfHub.Cache,
           HfHub.FS,
           HfHub.Auth

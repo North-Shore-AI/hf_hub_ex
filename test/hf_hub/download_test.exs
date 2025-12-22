@@ -112,6 +112,47 @@ defmodule HfHub.DownloadTest do
                  token: "hf_secret_token"
                )
     end
+
+    test "extracts archives when extract is true", %{bypass: bypass} do
+      dir =
+        Path.join(
+          System.tmp_dir!(),
+          "hf_hub_download_extract_#{System.unique_integer([:positive])}"
+        )
+
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf(dir) end)
+
+      source_path = Path.join(dir, "hello.txt")
+      File.write!(source_path, "hello archive")
+
+      zip_path = Path.join(dir, "archive.zip")
+
+      {:ok, _} =
+        :zip.create(
+          to_charlist(zip_path),
+          [~c"hello.txt"],
+          cwd: to_charlist(dir)
+        )
+
+      zip_binary = File.read!(zip_path)
+
+      Bypass.expect_once(bypass, "GET", "/test-repo/resolve/main/archive.zip", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/zip")
+        |> Plug.Conn.resp(200, zip_binary)
+      end)
+
+      assert {:ok, extracted_path} =
+               HfHub.Download.hf_hub_download(
+                 repo_id: "test-repo",
+                 filename: "archive.zip",
+                 repo_type: :model,
+                 extract: true
+               )
+
+      assert File.read!(Path.join(extracted_path, "hello.txt")) == "hello archive"
+    end
   end
 
   describe "download_stream/1" do

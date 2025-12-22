@@ -62,6 +62,14 @@ defmodule HfHub.Api do
           lfs: map() | nil
         }
 
+  @type tree_entry :: %{
+          type: :file | :folder,
+          path: String.t(),
+          size: non_neg_integer() | nil,
+          lfs: map() | nil,
+          oid: String.t() | nil
+        }
+
   @doc """
   Fetches information about a model from the HuggingFace Hub.
 
@@ -249,6 +257,45 @@ defmodule HfHub.Api do
   end
 
   @doc """
+  Lists repository tree entries (files and folders).
+
+  ## Options
+
+    * `:repo_type` - Type of repository (`:model`, `:dataset`, or `:space`). Defaults to `:model`.
+    * `:revision` - Git revision. Defaults to `"main"`.
+    * `:path_in_repo` - Subdirectory path to list.
+    * `:recursive` - List recursively. Defaults to `false`.
+    * `:expand` - Request expanded metadata. Defaults to `false`.
+    * `:token` - Authentication token.
+  """
+  @spec list_repo_tree(HfHub.repo_id(), keyword()) :: {:ok, [tree_entry()]} | {:error, term()}
+  def list_repo_tree(repo_id, opts \\ []) do
+    repo_type = Keyword.get(opts, :repo_type, :model)
+    revision = Keyword.get(opts, :revision, "main")
+    token = Keyword.get(opts, :token)
+    recursive = Keyword.get(opts, :recursive, false)
+    expand = Keyword.get(opts, :expand, false)
+    path_in_repo = normalize_path_in_repo(Keyword.get(opts, :path_in_repo))
+
+    params = []
+    params = if recursive, do: [{:recursive, 1} | params], else: params
+    params = if expand, do: [{:expand, 1} | params], else: params
+    params = Enum.reverse(params)
+
+    path =
+      "/api/#{repo_type}s/#{repo_id}/tree/#{revision}" <>
+        if(path_in_repo, do: "/#{path_in_repo}", else: "")
+
+    case HfHub.HTTP.get_paginated(path, token: token, params: params) do
+      {:ok, items} ->
+        {:ok, Enum.map(items, &parse_tree_entry/1)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Gets the available configuration names for a dataset.
 
   Configurations (also called subsets) represent different versions or splits
@@ -269,11 +316,55 @@ defmodule HfHub.Api do
   @spec dataset_configs(HfHub.repo_id(), keyword()) :: {:ok, [String.t()]} | {:error, term()}
   def dataset_configs(repo_id, opts \\ []) do
     token = Keyword.get(opts, :token)
+    revision = Keyword.get(opts, :revision, "main")
 
-    case HfHub.HTTP.get("/api/datasets/#{repo_id}", token: token) do
+    case HfHub.HTTP.get("/api/datasets/#{repo_id}", token: token, params: [revision: revision]) do
       {:ok, data} ->
         card_data = Map.get(data, "cardData")
-        {:ok, extract_config_names(card_data)}
+        configs = extract_config_names(card_data)
+
+        if configs != [] do
+          {:ok, configs}
+        else
+          dataset_configs_fallback(repo_id, revision, token)
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Lists available splits for a dataset config.
+
+  ## Options
+
+    * `:config` - Dataset config name (defaults to inferred config).
+    * `:revision` - Git revision. Defaults to `"main"`.
+    * `:token` - Authentication token.
+  """
+  @spec dataset_splits(HfHub.repo_id(), keyword()) :: {:ok, [String.t()]} | {:error, term()}
+  def dataset_splits(repo_id, opts \\ []) do
+    token = Keyword.get(opts, :token)
+    revision = Keyword.get(opts, :revision, "main")
+    config_opt = Keyword.get(opts, :config)
+
+    case fetch_dataset_infos(repo_id, revision, token) do
+      {:ok, infos} ->
+        config = config_opt || default_config_from_infos(infos)
+        splits = splits_from_infos(infos, config)
+
+        if splits != [] do
+          {:ok, splits}
+        else
+          dataset_splits_from_tree(repo_id, config_opt, revision, token)
+        end
+
+      {:error, :not_found} ->
+        dataset_splits_from_tree(repo_id, config_opt, revision, token)
+
+      {:error, :invalid_response} ->
+        dataset_splits_from_tree(repo_id, config_opt, revision, token)
 
       {:error, reason} ->
         {:error, reason}
@@ -325,6 +416,8 @@ defmodule HfHub.Api do
 
     * `:repo_type` - Type of repository (`:model`, `:dataset`, or `:space`). Defaults to `:model`.
     * `:revision` - Git revision. Defaults to `"main"`.
+    * `:recursive` - List files recursively. Defaults to `true` for datasets.
+    * `:path_in_repo` - Subdirectory path to list.
     * `:token` - Authentication token.
 
   ## Examples
@@ -336,19 +429,184 @@ defmodule HfHub.Api do
     repo_type = Keyword.get(opts, :repo_type, :model)
     revision = Keyword.get(opts, :revision, "main")
     token = Keyword.get(opts, :token)
+    recursive = Keyword.get(opts, :recursive, repo_type == :dataset)
+    path_in_repo = Keyword.get(opts, :path_in_repo)
 
-    # Get repo info which includes file list
-    case repo_info_internal(repo_id, repo_type, revision, token) do
-      {:ok, info} ->
-        files = Map.get(info, "siblings", []) |> parse_siblings()
+    use_tree = repo_type == :dataset or recursive or not is_nil(path_in_repo)
+
+    if use_tree do
+      with {:ok, items} <-
+             list_repo_tree(repo_id,
+               repo_type: repo_type,
+               revision: revision,
+               token: token,
+               recursive: recursive,
+               path_in_repo: path_in_repo
+             ) do
+        files =
+          items
+          |> Enum.filter(&(&1.type == :file))
+          |> Enum.map(&tree_entry_to_file/1)
+
         {:ok, files}
+      end
+    else
+      # Get repo info which includes file list
+      case repo_info_internal(repo_id, repo_type, revision, token) do
+        {:ok, info} ->
+          files = Map.get(info, "siblings", []) |> parse_siblings()
+          {:ok, files}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  # Private helpers
+
+  defp dataset_configs_fallback(repo_id, revision, token) do
+    case fetch_dataset_infos(repo_id, revision, token) do
+      {:ok, infos} ->
+        configs = infos |> Map.keys() |> Enum.sort()
+
+        if configs != [] do
+          {:ok, configs}
+        else
+          dataset_configs_from_tree(repo_id, revision, token)
+        end
+
+      {:error, :not_found} ->
+        dataset_configs_from_tree(repo_id, revision, token)
+
+      {:error, :invalid_response} ->
+        dataset_configs_from_tree(repo_id, revision, token)
 
       {:error, reason} ->
         {:error, reason}
     end
   end
 
-  # Private helpers
+  defp dataset_configs_from_tree(repo_id, revision, token) do
+    with {:ok, tree} <-
+           list_repo_tree(repo_id,
+             repo_type: :dataset,
+             revision: revision,
+             token: token,
+             recursive: true
+           ) do
+      configs = HfHub.DatasetFiles.configs_from_tree(tree)
+      {:ok, configs}
+    end
+  end
+
+  defp dataset_splits_from_tree(repo_id, config_opt, revision, token) do
+    with {:ok, tree} <-
+           list_repo_tree(repo_id,
+             repo_type: :dataset,
+             revision: revision,
+             token: token,
+             recursive: true
+           ) do
+      configs = HfHub.DatasetFiles.configs_from_tree(tree)
+
+      config =
+        cond do
+          config_opt ->
+            config_opt
+
+          "default" in configs ->
+            "default"
+
+          configs == [] ->
+            "default"
+
+          true ->
+            hd(configs)
+        end
+
+      splits = HfHub.DatasetFiles.splits_from_tree(tree, config)
+      {:ok, splits}
+    end
+  end
+
+  defp fetch_dataset_infos(repo_id, revision, token) do
+    path = "/datasets/#{repo_id}/resolve/#{revision}/dataset_infos.json"
+
+    case HfHub.HTTP.get(path, token: token) do
+      {:ok, infos} when is_map(infos) ->
+        {:ok, infos}
+
+      {:ok, _} ->
+        {:error, :invalid_response}
+
+      {:error, %Jason.DecodeError{}} ->
+        {:error, :invalid_response}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp default_config_from_infos(infos) when is_map(infos) do
+    configs = infos |> Map.keys() |> Enum.sort()
+
+    cond do
+      "default" in configs -> "default"
+      configs == [] -> "default"
+      true -> hd(configs)
+    end
+  end
+
+  defp splits_from_infos(infos, config) when is_map(infos) and is_binary(config) do
+    case Map.get(infos, config) do
+      %{"splits" => splits} when is_map(splits) ->
+        splits |> Map.keys() |> Enum.sort()
+
+      %{"splits" => splits} when is_list(splits) ->
+        splits
+        |> Enum.map(&Map.get(&1, "name"))
+        |> Enum.reject(&is_nil/1)
+        |> Enum.sort()
+
+      _ ->
+        []
+    end
+  end
+
+  defp splits_from_infos(_, _), do: []
+
+  defp normalize_path_in_repo(nil), do: nil
+  defp normalize_path_in_repo(""), do: nil
+
+  defp normalize_path_in_repo(path) when is_binary(path) do
+    String.trim(path, "/")
+  end
+
+  defp parse_tree_entry(entry) when is_map(entry) do
+    %{
+      type: parse_tree_type(Map.get(entry, "type")),
+      path: Map.get(entry, "path"),
+      size: Map.get(entry, "size"),
+      lfs: Map.get(entry, "lfs"),
+      oid: Map.get(entry, "oid")
+    }
+  end
+
+  defp parse_tree_entry(_), do: %{type: :file, path: nil, size: nil, lfs: nil, oid: nil}
+
+  defp parse_tree_type("file"), do: :file
+  defp parse_tree_type("directory"), do: :folder
+  defp parse_tree_type("dir"), do: :folder
+  defp parse_tree_type(_), do: :file
+
+  defp tree_entry_to_file(entry) do
+    %{
+      rfilename: Map.get(entry, :path),
+      size: Map.get(entry, :size, 0) || 0,
+      lfs: Map.get(entry, :lfs)
+    }
+  end
 
   defp repo_info_internal(repo_id, repo_type, revision, token) do
     path =

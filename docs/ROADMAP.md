@@ -21,7 +21,10 @@ Feature parity roadmap with Python [huggingface_hub](https://github.com/huggingf
 | | `HfHub.Api.dataset_info/2` | `dataset_info()` | Done |
 | **Spaces** | `HfHub.Api.space_info/2` | `space_info()` | Done |
 | **Files** | `HfHub.Api.list_files/2` | `list_repo_files()` | Done |
+| | `HfHub.Api.list_repo_tree/2` | `list_repo_tree()` | Done |
 | **Datasets** | `HfHub.Api.dataset_configs/2` | `get_dataset_config_names()` | Done |
+| | `HfHub.Api.dataset_splits/2` | `get_dataset_split_names()` | Done |
+| | `HfHub.DatasetFiles.resolve/4` | `get_dataset_files()` (resolver) | Done |
 | **Download** | `HfHub.Download.hf_hub_download/1` | `hf_hub_download()` | Done |
 | | `HfHub.Download.snapshot_download/1` | `snapshot_download()` | Done |
 | | `HfHub.Download.download_stream/1` | - | Done |
@@ -71,7 +74,6 @@ Extended read operations and space management.
 | Check repo exists | `repo_exists()` | HEAD request |
 | Check revision exists | `revision_exists()` | HEAD request |
 | Check file exists | `file_exists()` | HEAD request |
-| List repo tree | `list_repo_tree()` | GET `/api/{type}/{id}/tree/{revision}` |
 | List repo refs | `list_repo_refs()` | Branches and tags |
 | List repo commits | `list_repo_commits()` | Commit history |
 | Get paths info | `get_paths_info()` | File metadata |
