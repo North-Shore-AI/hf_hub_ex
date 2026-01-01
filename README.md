@@ -18,12 +18,14 @@
 ## Features
 
 - **Hub API Client** — Fetch metadata for models, datasets, and spaces
+- **Bumblebee Compatible** — Drop-in integration with Elixir ML pipelines via tuple-based repository API
 - **Repo Tree Listing** — Recursive tree listing with pagination
 - **File Downloads** — Stream files from HuggingFace repositories with resume support
 - **Archive Extraction** — Optional extraction for zip/tar.gz/tgz/tar.xz/gz files
-- **Smart Caching** — Local file caching with LRU eviction and integrity checks
+- **Smart Caching** — Local file caching with LRU eviction and ETag-based validation
 - **Filesystem Utilities** — Manage local HuggingFace cache directory structure
 - **Authentication** — Token-based authentication for private repositories
+- **Structured Errors** — 30+ exception types matching Python's `huggingface_hub`
 - **BEAM-native** — Leverages OTP, GenServers, and supervision trees for reliability
 - **Type-safe** — Comprehensive typespecs and pattern matching
 
@@ -34,7 +36,7 @@ Add `hf_hub` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:hf_hub, "~> 0.1.1"}
+    {:hf_hub, "~> 0.1.2"}
   ]
 end
 ```
@@ -116,6 +118,29 @@ IO.inspect(model_info.tags)        # ["pytorch", "bert", "fill-mask"]
 # Resolve file paths for a config + split
 {:ok, files} =
   HfHub.DatasetFiles.resolve("dpdl-benchmark/caltech101", "default", "train")
+```
+
+### Bumblebee-Compatible API
+
+Use the tuple-based repository API for seamless integration with Elixir ML pipelines:
+
+```elixir
+# Repository reference types
+repo = {:hf, "bert-base-uncased"}
+repo_with_opts = {:hf, "bert-base-uncased", revision: "v1.0", auth_token: "hf_xxx"}
+local_repo = {:local, "/path/to/model"}
+
+# List files with ETags for cache validation
+{:ok, files} = HfHub.get_repo_files({:hf, "bert-base-uncased"})
+# => %{"config.json" => "\"abc123\"", "pytorch_model.bin" => "\"def456\"", ...}
+
+# ETag-based cached download
+{:ok, path} = HfHub.cached_download(
+  "https://huggingface.co/bert-base-uncased/resolve/main/config.json"
+)
+
+# Build file URLs
+url = HfHub.file_url("bert-base-uncased", "config.json", "main")
 ```
 
 ### Cache Management
@@ -235,6 +260,57 @@ Authentication and authorization:
 - `whoami/0` — Get current user information
 - `validate_token/1` — Validate token format
 - `auth_headers/1` — Build HTTP authorization headers
+
+### HfHub.Hub
+
+Bumblebee-compatible ETag-based caching:
+
+- `cached_download/2` — Download with ETag-based cache validation
+- `file_url/3` — Build file URL for repository
+- `file_listing_url/3` — Build tree listing URL
+
+### HfHub.Repository
+
+Repository reference types and helpers:
+
+- `normalize!/1` — Normalize repository tuples
+- `file_url/2` — Build file URL from repository reference
+- `file_listing_url/1` — Build listing URL from repository reference
+- `cache_scope/1` — Convert repo ID to cache scope string
+
+### HfHub.RepoFiles
+
+Repository file listing with ETags:
+
+- `get_repo_files/1` — Get map of files to ETags for cache validation
+
+### HfHub.Constants
+
+Constants matching Python's `huggingface_hub.constants`:
+
+- File names: `config_name/0`, `pytorch_weights_name/0`, `safetensors_single_file/0`
+- Timeouts: `default_etag_timeout/0`, `default_download_timeout/0`
+- Repository types: `repo_types/0`, `repo_type_url_prefix/1`
+
+### HfHub.Errors
+
+Structured exceptions for error handling:
+
+- Repository: `RepositoryNotFound`, `RevisionNotFound`, `EntryNotFound`, `GatedRepo`
+- HTTP: `HTTPError`, `BadRequest`, `OfflineMode`
+- Cache: `CacheNotFound`, `CorruptedCache`, `LocalEntryNotFound`
+- Inference: `InferenceTimeout`, `InferenceEndpointError`
+- Storage: `XetError`, `DDUFError`, `SafetensorsParsing`
+
+### HfHub.LFS
+
+LFS (Large File Storage) utilities:
+
+- `UploadInfo.from_path/1` — Create upload info from file
+- `UploadInfo.from_binary/1` — Create upload info from binary
+- `sha256_hex/1` — Get hex-encoded SHA256 hash
+- `oid/1` — Get LFS object identifier
+- `lfs_headers/0` — Get standard LFS headers
 
 ## Configuration
 

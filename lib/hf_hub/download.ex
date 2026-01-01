@@ -287,22 +287,22 @@ defmodule HfHub.Download do
 
   defp maybe_extract(path, opts) do
     if Keyword.get(opts, :extract, false) do
-      case HfHub.Extract.detect_archive_type(path) do
-        nil ->
-          {:ok, path}
-
-        _type ->
-          dest = extract_destination(path, opts)
-
-          if File.exists?(dest) do
-            {:ok, dest}
-          else
-            HfHub.Extract.extract(path, dest)
-          end
-      end
+      do_extract(path, opts)
     else
       {:ok, path}
     end
+  end
+
+  defp do_extract(path, opts) do
+    case HfHub.Extract.detect_archive_type(path) do
+      nil -> {:ok, path}
+      _type -> extract_to_destination(path, opts)
+    end
+  end
+
+  defp extract_to_destination(path, opts) do
+    dest = extract_destination(path, opts)
+    if File.exists?(dest), do: {:ok, dest}, else: HfHub.Extract.extract(path, dest)
   end
 
   defp extract_destination(path, opts) do

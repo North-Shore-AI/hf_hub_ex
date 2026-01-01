@@ -118,21 +118,18 @@ defmodule HfHub.DatasetFiles do
   defp match_paths_with_prefixes(paths, prefixes, split) do
     prefixes
     |> Enum.flat_map(fn prefix ->
-      Enum.flat_map(paths, fn path ->
-        if String.starts_with?(path, prefix) do
-          relative = String.replace_prefix(path, prefix, "")
-
-          if split_match?(relative, split) do
-            [path]
-          else
-            []
-          end
-        else
-          []
-        end
-      end)
+      Enum.flat_map(paths, &match_path_for_prefix(&1, prefix, split))
     end)
     |> Enum.uniq()
+  end
+
+  defp match_path_for_prefix(path, prefix, split) do
+    if String.starts_with?(path, prefix) do
+      relative = String.replace_prefix(path, prefix, "")
+      if split_match?(relative, split), do: [path], else: []
+    else
+      []
+    end
   end
 
   defp fallback_to_root_if_empty([], paths, config, split) when config not in [nil, "default"] do
@@ -161,20 +158,7 @@ defmodule HfHub.DatasetFiles do
     splits =
       prefixes
       |> Enum.flat_map(fn prefix ->
-        Enum.flat_map(paths, fn path ->
-          if String.starts_with?(path, prefix) do
-            relative = String.replace_prefix(path, prefix, "")
-            split = split_from_path(relative)
-
-            if split in @known_splits do
-              [split]
-            else
-              []
-            end
-          else
-            []
-          end
-        end)
+        Enum.flat_map(paths, &extract_split_for_prefix(&1, prefix))
       end)
       |> Enum.uniq()
 
@@ -182,6 +166,16 @@ defmodule HfHub.DatasetFiles do
       splits_from_paths(paths, nil)
     else
       splits
+    end
+  end
+
+  defp extract_split_for_prefix(path, prefix) do
+    if String.starts_with?(path, prefix) do
+      relative = String.replace_prefix(path, prefix, "")
+      split = split_from_path(relative)
+      if split in @known_splits, do: [split], else: []
+    else
+      []
     end
   end
 

@@ -63,6 +63,46 @@ defmodule HfHub.HTTP do
   end
 
   @doc """
+  Makes a HEAD request to fetch headers without body.
+
+  Used for ETag-based cache validation.
+
+  ## Arguments
+
+    * `url` - Full URL to request
+    * `opts` - Request options
+
+  ## Options
+
+    * `:headers` - Request headers
+    * `:follow_redirects` - Whether to follow redirects. Defaults to `true`.
+
+  ## Examples
+
+      {:ok, response} = HfHub.HTTP.head("https://huggingface.co/model/file")
+  """
+  @spec head(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def head(url, opts \\ []) do
+    headers = Keyword.get(opts, :headers, [])
+    follow_redirects = Keyword.get(opts, :follow_redirects, true)
+    http_opts = Config.http_opts()
+
+    req_opts = [
+      headers: headers,
+      receive_timeout: http_opts[:receive_timeout],
+      redirect: follow_redirects
+    ]
+
+    case Req.head(url, req_opts) do
+      {:ok, %Req.Response{status: status, headers: resp_headers}} ->
+        {:ok, %{status: status, headers: resp_headers}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Makes a paginated GET request and collects all pages.
 
   Pagination follows the `Link` header with `rel="next"`.
@@ -254,25 +294,7 @@ defmodule HfHub.HTTP do
   defp do_get_paginated(url, req_opts, acc) do
     case Req.get(url, req_opts) do
       {:ok, %Req.Response{status: status, body: body, headers: headers}} when status in 200..299 ->
-        if is_list(body) do
-          next_url = next_link(headers)
-
-          next_url =
-            if next_url && not String.starts_with?(next_url, "http"),
-              do: build_url(next_url),
-              else: next_url
-
-          new_acc = acc ++ body
-
-          if next_url do
-            next_opts = Keyword.delete(req_opts, :params)
-            do_get_paginated(next_url, next_opts, new_acc)
-          else
-            {:ok, new_acc}
-          end
-        else
-          {:error, :invalid_response}
-        end
+        handle_paginated_success(body, headers, req_opts, acc)
 
       {:ok, %Req.Response{status: 404}} ->
         {:error, :not_found}
@@ -288,6 +310,27 @@ defmodule HfHub.HTTP do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp handle_paginated_success(body, headers, req_opts, acc) when is_list(body) do
+    next_url = resolve_next_url(headers)
+    new_acc = acc ++ body
+
+    case next_url do
+      nil -> {:ok, new_acc}
+      url -> do_get_paginated(url, Keyword.delete(req_opts, :params), new_acc)
+    end
+  end
+
+  defp handle_paginated_success(_body, _headers, _req_opts, _acc) do
+    {:error, :invalid_response}
+  end
+
+  defp resolve_next_url(headers) do
+    case next_link(headers) do
+      nil -> nil
+      url when is_binary(url) -> if String.starts_with?(url, "http"), do: url, else: build_url(url)
     end
   end
 

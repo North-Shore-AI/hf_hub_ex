@@ -47,10 +47,29 @@ defmodule HfHub do
   - `HfHub.Cache` — Cache management and statistics
   - `HfHub.FS` — Filesystem utilities for cache
   - `HfHub.Auth` — Authentication and authorization
+  - `HfHub.Hub` — Bumblebee-compatible ETag-based caching
+  - `HfHub.Repository` — Repository reference types
+  - `HfHub.RepoFiles` — Repository file listing with ETags
   """
 
   @type repo_type :: :model | :dataset | :space
   @type repo_id :: String.t()
   @type filename :: String.t()
   @type revision :: String.t()
+
+  @typedoc """
+  A repository reference (Bumblebee-compatible).
+
+  Can be either:
+    * `{:hf, repository_id}` - HuggingFace repository
+    * `{:hf, repository_id, opts}` - HuggingFace repository with options
+    * `{:local, directory}` - Local directory
+  """
+  @type repository :: HfHub.Repository.t()
+
+  # Delegates for Bumblebee-compatible API
+  defdelegate get_repo_files(repository), to: HfHub.RepoFiles
+  defdelegate cached_download(url, opts \\ []), to: HfHub.Hub
+  defdelegate file_url(repository_id, filename, revision), to: HfHub.Hub
+  defdelegate file_listing_url(repository_id, subdir, revision), to: HfHub.Hub
 end
