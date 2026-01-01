@@ -1,5 +1,17 @@
 # Prompt 01: HTTP Write Methods (POST, PUT, DELETE, PATCH)
 
+## IMPORTANT: Check for Existing Work First
+
+**Before starting implementation**, search the codebase for existing work on this task:
+1. Read `lib/hf_hub/http.ex` and check if `post/3`, `put/3`, `patch/3`, `delete/2` already exist
+2. Read `test/hf_hub/http_test.exs` and check for existing write method tests
+3. Check `git status` and `git diff` to see uncommitted changes that may contain partial work
+
+If existing implementations are found:
+- Review and complete any partial work rather than starting from scratch
+- Run existing tests to see what passes/fails
+- Focus on fixing/completing what's missing rather than rewriting
+
 ## Context
 
 You are implementing HTTP write methods for the `hf_hub_ex` Elixir library, a port of Python's `huggingface_hub`. The library currently only supports GET and HEAD requests. All subsequent features (repository management, uploads, etc.) depend on having write methods.

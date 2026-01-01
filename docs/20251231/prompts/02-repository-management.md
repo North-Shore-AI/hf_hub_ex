@@ -1,5 +1,18 @@
 # Prompt 02: Repository Management API
 
+## IMPORTANT: Check for Existing Work First
+
+**Before starting implementation**, search the codebase for existing work on this task:
+1. Check if `lib/hf_hub/repo.ex` already exists
+2. Check if `lib/hf_hub/repo/` directory exists with any structs
+3. Check if `test/hf_hub/repo_test.exs` exists
+4. Run `git status` to see uncommitted files that may contain partial work
+
+If existing implementations are found:
+- Review and complete any partial work rather than starting from scratch
+- Run existing tests with `mix test test/hf_hub/repo_test.exs` to see what passes/fails
+- Focus on fixing/completing what's missing rather than rewriting
+
 ## Context
 
 You are implementing repository management (CRUD) operations for the `hf_hub_ex` Elixir library. This enables creating, deleting, updating, and moving repositories on HuggingFace Hub.

@@ -36,7 +36,7 @@ Add `hf_hub` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:hf_hub, "~> 0.1.2"}
+    {:hf_hub, "~> 0.1.3"}
   ]
 end
 ```
@@ -141,6 +141,167 @@ local_repo = {:local, "/path/to/model"}
 
 # Build file URLs
 url = HfHub.file_url("bert-base-uncased", "config.json", "main")
+```
+
+### Repository Management
+
+```elixir
+# Create a new repository
+{:ok, url} = HfHub.Repo.create("my-org/my-model", private: true)
+
+# Create a Space with Gradio
+{:ok, url} = HfHub.Repo.create("my-space", repo_type: :space, space_sdk: "gradio")
+
+# Delete a repository
+:ok = HfHub.Repo.delete("my-org/old-model")
+
+# Update settings
+:ok = HfHub.Repo.update_settings("my-model", private: true, gated: :auto)
+
+# Move/rename
+{:ok, url} = HfHub.Repo.move("old-name", "new-org/new-name")
+
+# Check existence
+true = HfHub.Repo.exists?("bert-base-uncased")
+```
+
+### File Upload
+
+```elixir
+# Upload a small file (< 10MB uses base64, >= 10MB uses LFS automatically)
+{:ok, info} = HfHub.Commit.upload_file(
+  "/path/to/model.bin",
+  "model.bin",
+  "my-org/my-model",
+  token: token,
+  commit_message: "Add model weights"
+)
+
+# Upload from binary content
+{:ok, info} = HfHub.Commit.upload_file(
+  Jason.encode!(%{hidden_size: 768}),
+  "config.json",
+  "my-model",
+  token: token
+)
+
+# Delete a file
+{:ok, info} = HfHub.Commit.delete_file("old_model.bin", "my-model", token: token)
+
+# Multiple operations in one commit
+alias HfHub.Commit.Operation
+
+{:ok, info} = HfHub.Commit.create("my-model", [
+  Operation.add("config.json", config_content),
+  Operation.add("model.bin", "/path/to/model.bin"),
+  Operation.delete("old_config.json")
+], token: token, commit_message: "Update model")
+```
+
+### Folder Upload
+
+```elixir
+# Upload entire folder
+{:ok, info} = HfHub.Commit.upload_folder(
+  "/path/to/model_dir",
+  "my-org/my-model",
+  token: token,
+  commit_message: "Upload model"
+)
+
+# With pattern filtering
+{:ok, info} = HfHub.Commit.upload_folder(
+  "/path/to/model_dir",
+  "my-model",
+  token: token,
+  ignore_patterns: ["*.pyc", "__pycache__/**"],
+  allow_patterns: ["*.safetensors", "*.json"]
+)
+
+# Large folder with automatic batching
+{:ok, infos} = HfHub.Commit.upload_large_folder(
+  "/path/to/huge_model",
+  "my-model",
+  token: token,
+  multi_commits: true
+)
+```
+
+### Git Operations
+
+```elixir
+# Create a branch
+{:ok, info} = HfHub.Git.create_branch("my-org/my-model", "feature-branch", token: token)
+
+# Create branch from specific revision
+{:ok, info} = HfHub.Git.create_branch("my-model", "hotfix", revision: "v1.0", token: token)
+
+# Delete a branch
+:ok = HfHub.Git.delete_branch("my-model", "old-branch", token: token)
+
+# Create a tag
+{:ok, info} = HfHub.Git.create_tag("my-model", "v1.0", token: token)
+
+# Create annotated tag with message
+{:ok, info} = HfHub.Git.create_tag("my-model", "v2.0",
+  revision: "abc123",
+  message: "Release v2.0",
+  token: token
+)
+
+# List all refs (branches, tags)
+{:ok, refs} = HfHub.Git.list_refs("bert-base-uncased")
+refs.branches  # [%BranchInfo{name: "main", ...}]
+refs.tags      # [%TagInfo{name: "v1.0", ...}]
+
+# List commits
+{:ok, commits} = HfHub.Git.list_commits("bert-base-uncased", revision: "main")
+
+# Super squash (destructive - squashes all commits)
+:ok = HfHub.Git.super_squash("my-model", message: "Squashed history", token: token)
+```
+
+### User & Organization Profiles
+
+```elixir
+# Get user profile
+{:ok, user} = HfHub.Users.get("username")
+IO.inspect(user.num_followers)
+
+# List followers/following
+{:ok, followers} = HfHub.Users.list_followers("username")
+{:ok, following} = HfHub.Users.list_following("username")
+
+# Like/unlike repos
+:ok = HfHub.Users.like("bert-base-uncased")
+:ok = HfHub.Users.unlike("bert-base-uncased")
+
+# Organization info
+{:ok, org} = HfHub.Organizations.get("huggingface")
+{:ok, members} = HfHub.Organizations.list_members("huggingface")
+```
+
+### Model & Dataset Cards
+
+```elixir
+# Load and parse cards
+{:ok, card} = HfHub.Cards.load_model_card("bert-base-uncased")
+card.data.license  # "apache-2.0"
+card.data.tags     # ["pytorch", "bert", "fill-mask"]
+
+{:ok, card} = HfHub.Cards.load_dataset_card("squad")
+card.data.task_categories  # ["question-answering"]
+
+# Parse from content
+{:ok, card} = HfHub.Cards.parse_model_card(readme_content)
+
+# Create and render cards
+card = HfHub.Cards.create_model_card(%{
+  language: "en",
+  license: "mit",
+  tags: ["text-classification"]
+})
+markdown = HfHub.Cards.render(card)
 ```
 
 ### Cache Management
@@ -312,6 +473,62 @@ LFS (Large File Storage) utilities:
 - `oid/1` — Get LFS object identifier
 - `lfs_headers/0` — Get standard LFS headers
 
+### HfHub.Commit
+
+Commit operations for file uploads:
+
+- `create/3` — Create commit with multiple operations
+- `upload_file/4` — Upload single file (regular or LFS)
+- `upload_folder/3` — Upload entire directory with pattern filtering
+- `upload_large_folder/3` — Upload large directories with automatic batching
+- `delete_file/3` — Delete file from repository
+- `delete_folder/3` — Delete folder from repository
+- `matches_pattern?/2` — Check if path matches gitignore-style pattern
+- `needs_lfs?/1` — Check if file needs LFS upload
+- `lfs_threshold/0` — Get LFS size threshold (10MB)
+
+### HfHub.Git
+
+Git operations for branch, tag, and commit management:
+
+- `create_branch/3` — Create a new branch from a revision
+- `delete_branch/3` — Delete a branch
+- `create_tag/3` — Create a tag (lightweight or annotated)
+- `delete_tag/3` — Delete a tag
+- `list_refs/2` — List all refs (branches, tags, converts, pull requests)
+- `list_commits/2` — List commit history for a revision
+- `super_squash/2` — Squash all commits (destructive)
+
+### HfHub.Users
+
+User profile and activity API:
+
+- `get/2` — Get user profile by username
+- `list_followers/2` — List users who follow a user
+- `list_following/2` — List users a user is following
+- `list_liked_repos/2` — List repositories liked by a user
+- `like/2`, `unlike/2` — Like/unlike repositories
+- `list_likers/2` — List users who liked a repository
+
+### HfHub.Organizations
+
+Organization profile API:
+
+- `get/2` — Get organization profile by name
+- `list_members/2` — List organization members
+
+### HfHub.Cards
+
+Model and Dataset card parsing and creation:
+
+- `load_model_card/2` — Load and parse model card from repository
+- `load_dataset_card/2` — Load and parse dataset card from repository
+- `parse_model_card/1` — Parse model card from markdown content
+- `parse_dataset_card/1` — Parse dataset card from markdown content
+- `create_model_card/1` — Create model card from data
+- `create_dataset_card/1` — Create dataset card from data
+- `render/1` — Render card to markdown with YAML frontmatter
+
 ## Configuration
 
 Configure `hf_hub` in your `config/config.exs`:
@@ -350,8 +567,8 @@ config :hf_hub,
 | File Downloads | ✅ | ✅ |
 | Caching | ✅ | ✅ (OTP-based) |
 | Authentication | ✅ | ✅ |
-| Repository Management | ✅ | 🚧 (Planned) |
-| Upload Files | ✅ | 🚧 (Planned) |
+| Repository Management | ✅ | ✅ |
+| Upload Files | ✅ | ✅ |
 | Inference API | ✅ | 🚧 (Planned) |
 
 ### Key Differences
@@ -366,8 +583,9 @@ config :hf_hub,
 - [x] Core API client (models, datasets, spaces)
 - [x] File download with caching
 - [x] Authentication support
-- [ ] Repository management (create, delete, update)
-- [ ] File uploads
+- [x] Repository management (create, delete, update)
+- [x] File uploads (single file, LFS support)
+- [x] Folder uploads (with pattern filtering and batching)
 - [ ] Inference API client
 - [ ] WebSocket support for real-time inference
 - [ ] Integration with `crucible_datasets` for dataset loading

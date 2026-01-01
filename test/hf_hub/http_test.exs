@@ -100,6 +100,37 @@ defmodule HfHub.HTTPTest do
       assert {:ok, %{"result" => "ok"}} = HfHub.HTTP.post(url, %{}, token: "test_token")
     end
 
+    test "handles 201 created response", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(201, Jason.encode!(%{id: "new-resource"}))
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:ok, %{"id" => "new-resource"}} = HfHub.HTTP.post(url, %{name: "test"})
+    end
+
+    test "handles 400 errors", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(400, Jason.encode!(%{error: "Bad Request"}))
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:error, %HfHub.Errors.BadRequest{message: "Bad Request"}} = HfHub.HTTP.post(url)
+    end
+
+    test "handles 401 unauthorized", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
+        Plug.Conn.resp(conn, 401, "Unauthorized")
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:error, :unauthorized} = HfHub.HTTP.post(url, %{})
+    end
+
     test "handles 404 errors", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
         Plug.Conn.resp(conn, 404, "Not Found")
@@ -107,6 +138,131 @@ defmodule HfHub.HTTPTest do
 
       url = "http://localhost:#{bypass.port}/api/test"
       assert {:error, :not_found} = HfHub.HTTP.post(url, %{})
+    end
+
+    test "handles 409 conflict", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(409, Jason.encode!(%{error: "Conflict"}))
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:error, {:conflict, %{"error" => "Conflict"}}} = HfHub.HTTP.post(url)
+    end
+
+    test "handles 422 validation error", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(422, Jason.encode!(%{error: "Invalid"}))
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:error, {:validation, %{"error" => "Invalid"}}} = HfHub.HTTP.post(url)
+    end
+
+    test "handles nil body", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{result: "ok"}))
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:ok, %{"result" => "ok"}} = HfHub.HTTP.post(url, nil)
+    end
+  end
+
+  describe "put/3" do
+    test "makes successful PUT request", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "PUT", "/api/test", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        assert Jason.decode!(body) == %{"data" => "update"}
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{result: "updated"}))
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:ok, %{"result" => "updated"}} = HfHub.HTTP.put(url, %{data: "update"})
+    end
+
+    test "handles 204 no content", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "PUT", "/api/test", fn conn ->
+        Plug.Conn.resp(conn, 204, "")
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert :ok = HfHub.HTTP.put(url, %{data: "update"})
+    end
+  end
+
+  describe "patch/3" do
+    test "makes successful PATCH request", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "PATCH", "/api/test", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        assert Jason.decode!(body) == %{"data" => "patch"}
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{result: "patched"}))
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:ok, %{"result" => "patched"}} = HfHub.HTTP.patch(url, %{data: "patch"})
+    end
+  end
+
+  describe "delete/2" do
+    test "returns :ok on 204", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "DELETE", "/api/test", fn conn ->
+        Plug.Conn.resp(conn, 204, "")
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert :ok = HfHub.HTTP.delete(url)
+    end
+
+    test "returns {:ok, body} on 200 with body", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "DELETE", "/api/test", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{deleted: true}))
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:ok, %{"deleted" => true}} = HfHub.HTTP.delete(url)
+    end
+
+    test "handles 404 not found", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "DELETE", "/api/test", fn conn ->
+        Plug.Conn.resp(conn, 404, "Not Found")
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert {:error, :not_found} = HfHub.HTTP.delete(url)
+    end
+  end
+
+  describe "post_action/3" do
+    test "returns :ok on 200", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
+        Plug.Conn.resp(conn, 200, "OK")
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert :ok = HfHub.HTTP.post_action(url)
+    end
+
+    test "returns :ok on 204", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->
+        Plug.Conn.resp(conn, 204, "")
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/test"
+      assert :ok = HfHub.HTTP.post_action(url)
     end
   end
 

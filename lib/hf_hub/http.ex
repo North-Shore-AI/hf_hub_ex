@@ -144,35 +144,47 @@ defmodule HfHub.HTTP do
 
       {:ok, response} = HfHub.HTTP.post("/api/endpoint", %{data: "value"})
   """
-  @spec post(String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def post(path, body, opts \\ []) do
-    url = build_url(path)
-    headers = build_headers(opts)
+  @spec post(String.t(), map() | nil, keyword()) :: {:ok, map()} | {:error, term()}
+  def post(path, body \\ nil, opts \\ []) do
+    request(:post, path, body, opts)
+  end
 
-    http_opts = Config.http_opts()
+  @doc """
+  Performs a PUT request with JSON body.
+  """
+  @spec put(String.t(), map() | nil, keyword()) :: {:ok, map()} | {:error, term()}
+  def put(path, body \\ nil, opts \\ []) do
+    request(:put, path, body, opts)
+  end
 
-    req_opts = [
-      json: body,
-      headers: headers,
-      receive_timeout: http_opts[:receive_timeout],
-      decode_json: [keys: :strings]
-    ]
+  @doc """
+  Performs a PATCH request with JSON body.
+  """
+  @spec patch(String.t(), map() | nil, keyword()) :: {:ok, map()} | {:error, term()}
+  def patch(path, body \\ nil, opts \\ []) do
+    request(:patch, path, body, opts)
+  end
 
-    case Req.post(url, req_opts) do
-      {:ok, %Req.Response{status: status, body: response_body}} when status in 200..299 ->
-        {:ok, response_body}
+  @doc """
+  Performs a DELETE request.
 
-      {:ok, %Req.Response{status: 404}} ->
-        {:error, :not_found}
+  DELETE requests typically don't have a body but may return data.
+  """
+  @spec delete(String.t(), keyword()) :: :ok | {:ok, map()} | {:error, term()}
+  def delete(path, opts \\ []) do
+    request(:delete, path, nil, opts)
+  end
 
-      {:ok, %Req.Response{status: 401}} ->
-        {:error, :unauthorized}
+  @doc """
+  Performs a POST request expecting no response body.
 
-      {:ok, %Req.Response{status: status, body: response_body}} ->
-        {:error, {:http_error, status, response_body}}
-
-      {:error, reason} ->
-        {:error, reason}
+  Used for actions that return 200/204 with no content.
+  """
+  @spec post_action(String.t(), map() | nil, keyword()) :: :ok | {:error, term()}
+  def post_action(path, body \\ nil, opts \\ []) do
+    case post(path, body, opts) do
+      {:ok, _body} -> :ok
+      other -> other
     end
   end
 
@@ -268,6 +280,71 @@ defmodule HfHub.HTTP do
   end
 
   # Private helpers
+
+  defp request(method, path, body, opts) do
+    url = build_url(path)
+    headers = build_headers(opts)
+    http_opts = Config.http_opts()
+
+    req_opts = [
+      json: body,
+      headers: headers,
+      receive_timeout: http_opts[:receive_timeout],
+      decode_json: [keys: :strings]
+    ]
+
+    case method do
+      :post -> Req.post(url, req_opts)
+      :put -> Req.put(url, req_opts)
+      :patch -> Req.patch(url, req_opts)
+      :delete -> Req.delete(url, req_opts)
+    end
+    |> handle_response()
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 204}}), do: :ok
+
+  defp handle_response({:ok, %Req.Response{status: status, body: body}}) when status in 200..299 do
+    {:ok, body}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 400, body: body}}) do
+    message = map_error_message(body)
+    {:error, %HfHub.Errors.BadRequest{message: message, status: 400}}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 401}}) do
+    {:error, :unauthorized}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 403}}) do
+    {:error, :forbidden}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 404}}) do
+    {:error, :not_found}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 409, body: body}}) do
+    {:error, {:conflict, body}}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 422, body: body}}) do
+    {:error, {:validation, body}}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: status, body: body}}) when status >= 500 do
+    {:error, {:server_error, status, body}}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: status, body: body}}) do
+    {:error, {:http_error, status, body}}
+  end
+
+  defp handle_response({:error, reason}), do: {:error, reason}
+
+  defp map_error_message(%{"error" => error}) when is_binary(error), do: error
+  defp map_error_message(body), do: inspect(body)
 
   defp build_url(path) do
     endpoint = Config.endpoint()

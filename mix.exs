@@ -1,7 +1,7 @@
 defmodule HfHub.MixProject do
   use Mix.Project
 
-  @version "0.1.2"
+  @version "0.1.3"
   @source_url "https://github.com/North-Shore-AI/hf_hub_ex"
 
   def project do
@@ -46,6 +46,9 @@ defmodule HfHub.MixProject do
 
       # JSON parsing
       {:jason, "~> 1.4"},
+
+      # YAML parsing for model/dataset cards
+      {:yaml_elixir, "~> 2.9"},
 
       # Optional: DataFrame support for dataset loading
       {:explorer, "~> 0.10", optional: true},
