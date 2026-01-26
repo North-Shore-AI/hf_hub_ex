@@ -201,7 +201,9 @@ defmodule HfHub.HTTP do
 
     * `:token` - Authentication token
     * `:resume` - Resume interrupted download. Defaults to `false`.
-    * `:progress_callback` - Function called with download progress
+    * `:progress_callback` - Function called with download progress.
+      The callback receives `(bytes_downloaded, total_bytes)` where
+      `total_bytes` may be `nil` if the server doesn't provide Content-Length.
 
   ## Examples
 
@@ -209,16 +211,26 @@ defmodule HfHub.HTTP do
         "https://huggingface.co/bert-base-uncased/resolve/main/config.json",
         "/tmp/config.json"
       )
+
+      # With progress tracking
+      :ok = HfHub.HTTP.download_file(
+        "https://huggingface.co/bert-base-uncased/resolve/main/model.bin",
+        "/tmp/model.bin",
+        progress_callback: fn downloaded, total ->
+          if total, do: IO.puts("\#{round(downloaded / total * 100)}%")
+        end
+      )
   """
   @spec download_file(String.t(), Path.t(), keyword()) :: :ok | {:error, term()}
   def download_file(url, destination, opts \\ []) do
     headers = build_headers(opts)
     resume = Keyword.get(opts, :resume, false)
+    progress_callback = Keyword.get(opts, :progress_callback)
 
     # Ensure parent directory exists
     with :ok <- destination |> Path.dirname() |> File.mkdir_p(),
          {:ok, {headers, output_mode}} <- prepare_resume(headers, resume, destination) do
-      do_download(url, destination, headers, output_mode)
+      do_download(url, destination, headers, output_mode, progress_callback)
     end
   end
 
@@ -240,13 +252,14 @@ defmodule HfHub.HTTP do
     {:ok, {headers, :write}}
   end
 
-  @spec do_download(String.t(), Path.t(), list(), atom()) :: :ok | {:error, term()}
-  defp do_download(url, destination, headers, output_mode) do
+  @spec do_download(String.t(), Path.t(), list(), atom(), function() | nil) ::
+          :ok | {:error, term()}
+  defp do_download(url, destination, headers, output_mode, progress_callback) do
     http_opts = Config.http_opts()
     file_modes = [:binary, output_mode]
 
     with {:ok, file} <- File.open(destination, file_modes),
-         result <- do_req_download(url, headers, file, http_opts),
+         result <- do_req_download(url, headers, file, http_opts, progress_callback),
          :ok <- File.close(file) do
       result
     else
@@ -254,7 +267,8 @@ defmodule HfHub.HTTP do
     end
   end
 
-  defp do_req_download(url, headers, file, http_opts) do
+  defp do_req_download(url, headers, file, http_opts, nil) do
+    # No progress callback - use simple streaming
     stream = IO.binstream(file, :line)
 
     case Req.get(url,
@@ -276,6 +290,80 @@ defmodule HfHub.HTTP do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp do_req_download(url, headers, file, http_opts, progress_callback) do
+    # With progress callback - use chunked streaming with tracking
+    case Req.get(url,
+           headers: headers,
+           into: fn {:data, chunk}, {_req, resp} = acc ->
+             IO.binwrite(file, chunk)
+             acc_state = get_progress_state(resp)
+             new_downloaded = acc_state.downloaded + byte_size(chunk)
+
+             # Call progress callback, catching any errors to not break download
+             try do
+               progress_callback.(new_downloaded, acc_state.total)
+             rescue
+               _ -> :ok
+             catch
+               _, _ -> :ok
+             end
+
+             # Update state in process dictionary for next chunk
+             Process.put(:hf_download_progress, %{
+               downloaded: new_downloaded,
+               total: acc_state.total
+             })
+
+             {:cont, acc}
+           end,
+           receive_timeout: http_opts[:receive_timeout]
+         ) do
+      {:ok, %Req.Response{status: status}} when status in [200, 206] ->
+        Process.delete(:hf_download_progress)
+        :ok
+
+      {:ok, %Req.Response{status: 404}} ->
+        Process.delete(:hf_download_progress)
+        {:error, :not_found}
+
+      {:ok, %Req.Response{status: 401}} ->
+        Process.delete(:hf_download_progress)
+        {:error, :unauthorized}
+
+      {:ok, %Req.Response{status: status}} ->
+        Process.delete(:hf_download_progress)
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        Process.delete(:hf_download_progress)
+        {:error, reason}
+    end
+  end
+
+  defp get_progress_state(resp) do
+    case Process.get(:hf_download_progress) do
+      nil ->
+        # First chunk - initialize state with total from Content-Length header
+        total = get_content_length(resp)
+        state = %{downloaded: 0, total: total}
+        Process.put(:hf_download_progress, state)
+        state
+
+      state ->
+        state
+    end
+  end
+
+  defp get_content_length(resp) do
+    case Enum.find(resp.headers, fn {key, _} ->
+           String.downcase(to_string(key)) == "content-length"
+         end) do
+      {_, [value | _]} -> String.to_integer(value)
+      {_, value} when is_binary(value) -> String.to_integer(value)
+      _ -> nil
     end
   end
 

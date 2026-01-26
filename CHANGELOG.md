@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-01-25
+
+### Added
+- `:progress_callback` option in `HfHub.Download.hf_hub_download/1` for download progress tracking.
+  The callback receives `(bytes_downloaded, total_bytes)` during download.
+- `:verify_checksum` option in `HfHub.Download.hf_hub_download/1` to compute SHA256 after download.
+- `:expected_sha256` option in `HfHub.Download.hf_hub_download/1` for SHA256 verification.
+  Returns `{:error, {:checksum_mismatch, expected, actual}}` if hashes don't match.
+- `HfHub.Download.compute_sha256/1` to compute SHA256 hash of a file.
+- `HfHub.offline_mode?/0` to check if offline mode is enabled via `HF_HUB_OFFLINE=1` env var
+  or `Application.put_env(:hf_hub, :offline, true)`. (`is_offline_mode/0` available for Python compatibility)
+- `HfHub.try_to_load_from_cache/3` for cache-only file loading without network requests.
+  Returns `{:ok, path}` if file is cached, `{:error, :not_cached}` otherwise.
+
 ## [0.1.3] - 2025-12-31
 
 ### Added
@@ -158,6 +172,8 @@ Initial release with full HuggingFace Hub client functionality:
 - **HfHub.FS**: Cache directory and file locking utilities
 - **HfHub.Config**: Configuration with environment variable support
 
+[0.2.0]: https://github.com/North-Shore-AI/hf_hub_ex/compare/v0.1.3...v0.2.0
+[0.1.3]: https://github.com/North-Shore-AI/hf_hub_ex/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/North-Shore-AI/hf_hub_ex/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/North-Shore-AI/hf_hub_ex/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/North-Shore-AI/hf_hub_ex/releases/tag/v0.1.0

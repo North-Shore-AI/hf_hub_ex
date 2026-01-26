@@ -36,7 +36,7 @@ Add `hf_hub` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:hf_hub, "~> 0.1.3"}
+    {:hf_hub, "~> 0.2.0"}
   ]
 end
 ```
@@ -96,6 +96,46 @@ IO.inspect(model_info.tags)        # ["pytorch", "bert", "fill-mask"]
   repo_type: :dataset,
   extract: true
 )
+
+# Download with progress tracking
+{:ok, path} = HfHub.Download.hf_hub_download(
+  repo_id: "some/model",
+  filename: "model.bin",
+  progress_callback: fn downloaded, total ->
+    if total, do: IO.puts("#{round(downloaded / total * 100)}%")
+  end
+)
+
+# Download with SHA256 verification
+{:ok, path} = HfHub.Download.hf_hub_download(
+  repo_id: "some/model",
+  filename: "model.bin",
+  verify_checksum: true,
+  expected_sha256: "abc123..."  # Optional: fails if hash doesn't match
+)
+```
+
+### Offline Mode
+
+```elixir
+# Check if offline mode is enabled (via HF_HUB_OFFLINE=1 or config)
+if HfHub.offline_mode?() do
+  IO.puts("Running in offline mode - only cached files available")
+end
+
+# Try to load a file from cache without network requests
+case HfHub.try_to_load_from_cache("bert-base-uncased", "config.json") do
+  {:ok, path} ->
+    # File is cached, use it directly
+    File.read!(path)
+  {:error, :not_cached} ->
+    # File not cached, decide whether to download
+    {:ok, path} = HfHub.Download.hf_hub_download(
+      repo_id: "bert-base-uncased",
+      filename: "config.json"
+    )
+    File.read!(path)
+end
 ```
 
 ### Accessing Datasets

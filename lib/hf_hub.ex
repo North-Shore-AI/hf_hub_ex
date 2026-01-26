@@ -72,4 +72,86 @@ defmodule HfHub do
   defdelegate cached_download(url, opts \\ []), to: HfHub.Hub
   defdelegate file_url(repository_id, filename, revision), to: HfHub.Hub
   defdelegate file_listing_url(repository_id, subdir, revision), to: HfHub.Hub
+
+  @doc """
+  Check if offline mode is enabled.
+
+  Offline mode can be enabled via:
+  - `HF_HUB_OFFLINE=1` environment variable
+  - `Application.put_env(:hf_hub, :offline, true)`
+
+  When offline mode is enabled, no network requests are made and only
+  cached files are used.
+
+  ## Examples
+
+      if HfHub.offline_mode?() do
+        IO.puts("Running in offline mode")
+      end
+  """
+  @spec offline_mode?() :: boolean()
+  def offline_mode? do
+    System.get_env("HF_HUB_OFFLINE") == "1" or
+      Application.get_env(:hf_hub, :offline, false)
+  end
+
+  @doc """
+  Alias for `offline_mode?/0` for Python compatibility.
+
+  Deprecated: Use `offline_mode?/0` instead.
+  """
+  @deprecated "Use offline_mode?/0 instead"
+  @spec is_offline_mode() :: boolean()
+  # credo:disable-for-next-line Credo.Check.Readability.PredicateFunctionNames
+  def is_offline_mode, do: offline_mode?()
+
+  @doc """
+  Try to load a file from cache without network access.
+
+  Returns `{:ok, path}` if the file exists in cache, `{:error, :not_cached}` otherwise.
+  Does not attempt any network requests, even if offline mode is not enabled.
+
+  This is useful when you want to check if a file is available locally
+  before deciding whether to download it.
+
+  ## Arguments
+
+    * `repo_id` - Repository ID (e.g., "bert-base-uncased")
+    * `filename` - Name of the file to look up
+    * `opts` - Options
+
+  ## Options
+
+    * `:revision` - Git revision. Defaults to `"main"`.
+    * `:repo_type` - Type of repository (`:model`, `:dataset`, or `:space`). Defaults to `:model`.
+
+  ## Examples
+
+      case HfHub.try_to_load_from_cache("bert-base-uncased", "config.json") do
+        {:ok, path} ->
+          # File is cached, use it
+          File.read!(path)
+        {:error, :not_cached} ->
+          # File not cached, need to download
+          {:ok, path} = HfHub.Download.hf_hub_download(
+            repo_id: "bert-base-uncased",
+            filename: "config.json"
+          )
+          File.read!(path)
+      end
+  """
+  @spec try_to_load_from_cache(repo_id(), filename(), keyword()) ::
+          {:ok, Path.t()} | {:error, :not_cached}
+  def try_to_load_from_cache(repo_id, filename, opts \\ []) do
+    revision = Keyword.get(opts, :revision, "main")
+    repo_type = Keyword.get(opts, :repo_type, :model)
+
+    path = HfHub.FS.file_path(repo_id, repo_type, filename, revision)
+
+    if File.exists?(path) do
+      {:ok, path}
+    else
+      {:error, :not_cached}
+    end
+  end
 end

@@ -36,7 +36,10 @@ defmodule HfHub.Download do
           force_download: boolean(),
           extract: boolean(),
           extract_dir: Path.t(),
-          token: String.t() | nil
+          token: String.t() | nil,
+          progress_callback: (non_neg_integer(), non_neg_integer() | nil -> any()) | nil,
+          verify_checksum: boolean(),
+          expected_sha256: String.t() | nil
         ]
 
   @doc """
@@ -55,6 +58,10 @@ defmodule HfHub.Download do
     * `:extract` - Extract archives after download. Defaults to `false`.
     * `:extract_dir` - Destination for extracted files (directory for archives, file path for .gz).
     * `:token` - Authentication token.
+    * `:progress_callback` - Function called with `(bytes_downloaded, total_bytes)` during download.
+      `total_bytes` may be `nil` if the server doesn't provide Content-Length.
+    * `:verify_checksum` - Verify SHA256 checksum after download. Defaults to `false`.
+    * `:expected_sha256` - Expected SHA256 hash. If provided and doesn't match, returns error.
 
   ## Examples
 
@@ -69,6 +76,23 @@ defmodule HfHub.Download do
         repo_type: :dataset,
         revision: "main"
       )
+
+      # With progress tracking
+      {:ok, path} = HfHub.Download.hf_hub_download(
+        repo_id: "some/model",
+        filename: "model.bin",
+        progress_callback: fn downloaded, total ->
+          if total, do: IO.puts("\#{round(downloaded / total * 100)}%")
+        end
+      )
+
+      # With checksum verification
+      {:ok, path} = HfHub.Download.hf_hub_download(
+        repo_id: "some/model",
+        filename: "model.bin",
+        verify_checksum: true,
+        expected_sha256: "abc123..."
+      )
   """
   @spec hf_hub_download(download_opts()) :: {:ok, Path.t()} | {:error, term()}
   def hf_hub_download(opts) do
@@ -78,6 +102,7 @@ defmodule HfHub.Download do
     revision = Keyword.get(opts, :revision, "main")
     force_download = Keyword.get(opts, :force_download, false)
     token = Keyword.get(opts, :token)
+    progress_callback = Keyword.get(opts, :progress_callback)
 
     # Check if file is already cached
     cache_path = HfHub.FS.file_path(repo_id, repo_type, filename, revision)
@@ -88,24 +113,89 @@ defmodule HfHub.Download do
       else
         # Download the file
         url = build_download_url(repo_id, repo_type, filename, revision)
-        do_download_file(url, cache_path, token)
+        do_download_file(url, cache_path, token, progress_callback)
       end
 
-    with {:ok, path} <- result do
+    with {:ok, path} <- result,
+         :ok <- verify_download(path, opts) do
       maybe_extract(path, opts)
     end
   end
 
-  defp do_download_file(url, cache_path, token) do
+  defp do_download_file(url, cache_path, token, progress_callback) do
     with :ok <- HfHub.FS.ensure_cache_dir(),
          :ok <- File.mkdir_p(Path.dirname(cache_path)),
          {:ok, lock_ref} <- HfHub.FS.lock_file(cache_path, Path.basename(cache_path)),
-         :ok <- HfHub.HTTP.download_file(url, cache_path, token: token) do
+         :ok <-
+           HfHub.HTTP.download_file(url, cache_path,
+             token: token,
+             progress_callback: progress_callback
+           ) do
       HfHub.FS.unlock_file(lock_ref)
       {:ok, cache_path}
     else
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp verify_download(path, opts) do
+    verify_checksum = Keyword.get(opts, :verify_checksum, false)
+    expected_sha256 = Keyword.get(opts, :expected_sha256)
+
+    cond do
+      expected_sha256 != nil ->
+        # Expected SHA provided - must verify
+        verify_sha256(path, expected_sha256)
+
+      verify_checksum ->
+        # Just compute and return ok (verification without expected value)
+        case compute_sha256(path) do
+          {:ok, _hash} -> :ok
+          error -> error
+        end
+
+      true ->
+        # No verification requested
+        :ok
+    end
+  end
+
+  defp verify_sha256(path, expected) do
+    case compute_sha256(path) do
+      {:ok, actual} when actual == expected ->
+        :ok
+
+      {:ok, actual} ->
+        {:error, {:checksum_mismatch, expected, actual}}
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Computes the SHA256 hash of a file.
+
+  Returns `{:ok, hash}` where hash is a lowercase hex-encoded string.
+
+  ## Examples
+
+      {:ok, hash} = HfHub.Download.compute_sha256("/path/to/file")
+      # => {:ok, "abc123..."}
+  """
+  @spec compute_sha256(Path.t()) :: {:ok, String.t()} | {:error, term()}
+  def compute_sha256(path) do
+    hash =
+      File.stream!(path, 65_536)
+      |> Enum.reduce(:crypto.hash_init(:sha256), fn chunk, acc ->
+        :crypto.hash_update(acc, chunk)
+      end)
+      |> :crypto.hash_final()
+      |> Base.encode16(case: :lower)
+
+    {:ok, hash}
+  rescue
+    e -> {:error, {:sha256_failed, e}}
   end
 
   defp build_download_url(repo_id, repo_type, filename, revision) do
