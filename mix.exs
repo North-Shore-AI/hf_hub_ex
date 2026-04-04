@@ -54,7 +54,7 @@ defmodule HfHub.MixProject do
       {:explorer, "~> 0.10", optional: true},
 
       # Development and testing
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
@@ -70,7 +70,7 @@ defmodule HfHub.MixProject do
         "GitHub" => @source_url,
         "HuggingFace" => "https://huggingface.co"
       },
-      files: ~w(lib mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib assets mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
