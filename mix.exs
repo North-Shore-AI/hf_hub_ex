@@ -70,7 +70,7 @@ defmodule HfHub.MixProject do
         "GitHub" => @source_url,
         "HuggingFace" => "https://huggingface.co"
       },
-      files: ~w(lib assets mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib assets mix.exs README.md LICENSE CHANGELOG.md docs)
     ]
   end
 
