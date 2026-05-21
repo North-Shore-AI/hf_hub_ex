@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.1] - 2026-05-21
 
+### Added
+- Add configurable timeouts for LFS uploads
+
 ### Fixed
+- Prevent URL-encoded slashes in repository IDs
 
 ## [0.2.0] - 2026-01-25
 

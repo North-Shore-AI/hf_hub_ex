@@ -7,7 +7,9 @@ defmodule HfHub.Commit.LfsUpload do
   """
 
   alias HfHub.Commit.Operation
-  alias HfHub.{HTTP, LFS}
+  alias HfHub.{Config, HTTP, LFS}
+
+  @default_lfs_upload_timeout 30 * 60 * 1000
 
   @doc """
   Uploads multiple LFS files in batch.
@@ -19,6 +21,10 @@ defmodule HfHub.Commit.LfsUpload do
 
   - `:repo_type` - Repository type: :model, :dataset, :space (default: :model)
   - `:max_workers` - Maximum concurrent uploads (default: 4)
+  - `:lfs_upload_timeout` - Socket receive timeout for direct LFS PUT/POST
+    requests in milliseconds (default: 30 minutes)
+  - `:lfs_task_timeout` - Task timeout per LFS object in milliseconds
+    (default: `:lfs_upload_timeout + 60_000`)
 
   ## Returns
 
@@ -32,7 +38,7 @@ defmodule HfHub.Commit.LfsUpload do
     max_workers = opts[:max_workers] || 4
 
     with {:ok, batch_response} <- request_batch_info(repo_id, upload_infos, token, opts),
-         :ok <- upload_all_concurrent(operations, batch_response, token, max_workers) do
+         :ok <- upload_all_concurrent(operations, batch_response, token, max_workers, opts) do
       # Mark all as uploaded
       uploaded = Enum.map(operations, fn op -> %{op | is_uploaded: true} end)
       {:ok, uploaded}
@@ -71,7 +77,7 @@ defmodule HfHub.Commit.LfsUpload do
   end
 
   # Uploads all objects concurrently with configurable max workers
-  defp upload_all_concurrent(operations, batch_response, token, max_workers) do
+  defp upload_all_concurrent(operations, batch_response, token, max_workers, opts) do
     objects = batch_response["objects"] || []
 
     # Create a map from OID to operation for quick lookup
@@ -96,12 +102,11 @@ defmodule HfHub.Commit.LfsUpload do
             upload_action ->
               op = Map.fetch!(ops_by_oid, oid)
               verify_action = Map.get(actions, "verify")
-              upload_single(op, upload_action, verify_action, token)
+              upload_single(op, upload_action, verify_action, token, opts)
           end
         end,
         max_concurrency: max_workers,
-        # 5 minute timeout per file
-        timeout: 300_000
+        timeout: lfs_task_timeout(opts)
       )
       |> Enum.map(fn
         {:ok, result} -> result
@@ -115,35 +120,35 @@ defmodule HfHub.Commit.LfsUpload do
   end
 
   # Uploads a single LFS object
-  defp upload_single(operation, upload_action, verify_action, _token) do
+  defp upload_single(operation, upload_action, verify_action, _token, opts) do
     href = upload_action["href"]
     headers = upload_action["header"] || %{}
 
     with {:ok, content} <- Operation.get_content(operation),
-         :ok <- do_upload(href, content, headers) do
-      maybe_verify(verify_action, operation)
+         :ok <- do_upload(href, content, headers, opts) do
+      maybe_verify(verify_action, operation, opts)
     end
   end
 
   # Determines upload type (single or multipart) and uploads
-  defp do_upload(href, content, headers) do
+  defp do_upload(href, content, headers, opts) do
     # Check if multipart upload is needed based on headers
     case Map.get(headers, "x-amz-meta-chunk-size") do
       nil ->
         # Single part upload
-        single_part_upload(href, content, headers)
+        single_part_upload(href, content, headers, opts)
 
       _chunk_size ->
         # Multipart upload
-        multipart_upload(href, content, headers)
+        multipart_upload(href, content, headers, opts)
     end
   end
 
   # Performs a single-part PUT upload
-  defp single_part_upload(href, content, headers) do
+  defp single_part_upload(href, content, headers, opts) do
     req_headers = headers_to_list(headers)
 
-    case Req.put(href, body: content, headers: req_headers) do
+    case Req.put(href, body: content, headers: req_headers, receive_timeout: lfs_upload_timeout(opts), pool_timeout: lfs_pool_timeout(opts)) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
 
@@ -156,7 +161,7 @@ defmodule HfHub.Commit.LfsUpload do
   end
 
   # Performs a multipart upload (for very large files)
-  defp multipart_upload(href, content, headers) do
+  defp multipart_upload(href, content, headers, opts) do
     # Parse chunk size from headers
     chunk_size = String.to_integer(headers["x-amz-meta-chunk-size"] || "67108864")
 
@@ -169,13 +174,13 @@ defmodule HfHub.Commit.LfsUpload do
       |> Enum.with_index(1)
       |> Enum.map(fn {chunk, part_num} ->
         url = Enum.at(part_urls, part_num - 1)
-        upload_part(url, chunk, part_num)
+        upload_part(url, chunk, part_num, opts)
       end)
 
     case Enum.all?(etag_results, &match?({:ok, _}, &1)) do
       true ->
         etags = Enum.map(etag_results, fn {:ok, etag} -> etag end)
-        complete_multipart(href, etags)
+        complete_multipart(href, etags, opts)
 
       false ->
         {:error, :multipart_upload_failed}
@@ -213,8 +218,8 @@ defmodule HfHub.Commit.LfsUpload do
   end
 
   # Uploads a single part and returns the ETag
-  defp upload_part(url, chunk, _part_num) do
-    case Req.put(url, body: chunk) do
+  defp upload_part(url, chunk, _part_num, opts) do
+    case Req.put(url, body: chunk, receive_timeout: lfs_upload_timeout(opts), pool_timeout: lfs_pool_timeout(opts)) do
       {:ok, %{status: 200, headers: headers}} ->
         etag = get_header(headers, "etag")
         {:ok, etag}
@@ -241,7 +246,7 @@ defmodule HfHub.Commit.LfsUpload do
   end
 
   # Completes a multipart upload
-  defp complete_multipart(href, etags) do
+  defp complete_multipart(href, etags, opts) do
     body = %{
       "parts" =>
         etags
@@ -251,7 +256,7 @@ defmodule HfHub.Commit.LfsUpload do
         end)
     }
 
-    case Req.post(href, json: body) do
+    case Req.post(href, json: body, receive_timeout: lfs_upload_timeout(opts), pool_timeout: lfs_pool_timeout(opts)) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
 
@@ -264,9 +269,9 @@ defmodule HfHub.Commit.LfsUpload do
   end
 
   # Verifies an upload if a verify action was provided
-  defp maybe_verify(nil, _operation), do: :ok
+  defp maybe_verify(nil, _operation, _opts), do: :ok
 
-  defp maybe_verify(verify_action, operation) do
+  defp maybe_verify(verify_action, operation, opts) do
     href = verify_action["href"]
     headers = verify_action["header"] || %{}
 
@@ -280,7 +285,7 @@ defmodule HfHub.Commit.LfsUpload do
       |> Map.put("Content-Type", "application/json")
       |> headers_to_list()
 
-    case Req.post(href, json: body, headers: req_headers) do
+    case Req.post(href, json: body, headers: req_headers, receive_timeout: lfs_upload_timeout(opts), pool_timeout: lfs_pool_timeout(opts)) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
 
@@ -290,6 +295,18 @@ defmodule HfHub.Commit.LfsUpload do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp lfs_upload_timeout(opts) do
+    Keyword.get(opts, :lfs_upload_timeout, @default_lfs_upload_timeout)
+  end
+
+  defp lfs_task_timeout(opts) do
+    Keyword.get(opts, :lfs_task_timeout, lfs_upload_timeout(opts) + 60_000)
+  end
+
+  defp lfs_pool_timeout(opts) do
+    Keyword.get(opts, :pool_timeout, Config.http_opts()[:pool_timeout] || 5_000)
   end
 
   # Converts headers map to list format for Req
