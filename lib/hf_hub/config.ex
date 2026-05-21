@@ -21,13 +21,16 @@ defmodule HfHub.Config do
   end
 
   @doc """
-  Gets the cache directory path.
+  Gets the cache directory path from application configuration.
 
-  Checks in order:
-  1. Application configuration
-  2. HF_HUB_CACHE environment variable
-  3. HF_HOME environment variable
-  4. Default: "~/.cache/huggingface"
+  Per Elixir runtime-configuration best practices, this library no longer
+  reads `HF_HUB_CACHE` or `HF_HOME` from the OS environment directly.
+  Hosts wire env vars into `Application.put_env(:hf_hub, :cache_dir, ...)`
+  from their `config/runtime.exs`. See the `HfHub` moduledoc for the
+  recommended snippet.
+
+  Falls back to the default `~/.cache/huggingface` if no app-env value is
+  set.
 
   ## Examples
 
@@ -36,18 +39,9 @@ defmodule HfHub.Config do
   """
   @spec cache_dir() :: Path.t()
   def cache_dir do
-    cond do
-      dir = Application.get_env(:hf_hub, :cache_dir) ->
-        Path.expand(dir)
-
-      dir = System.get_env("HF_HUB_CACHE") ->
-        Path.expand(dir)
-
-      dir = System.get_env("HF_HOME") ->
-        Path.join(Path.expand(dir), "hub")
-
-      true ->
-        default_cache_dir()
+    case Application.get_env(:hf_hub, :cache_dir) do
+      dir when is_binary(dir) and dir != "" -> Path.expand(dir)
+      _ -> default_cache_dir()
     end
   end
 

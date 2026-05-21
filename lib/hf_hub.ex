@@ -33,12 +33,39 @@ defmodule HfHub do
 
   ## Configuration
 
-  Configure in `config/config.exs`:
+  Per Elixir runtime-configuration best practices, this library reads only
+  from `Application.get_env(:hf_hub, ...)`. No OS environment variables
+  are read by library code. Hosts that want the historical env-var
+  shortcuts should wire them in `config/runtime.exs`:
 
+      # config/runtime.exs
+      import Config
+
+      if token = System.get_env("HF_TOKEN") do
+        config :hf_hub, token: token
+      end
+
+      cond do
+        dir = System.get_env("HF_HUB_CACHE") ->
+          config :hf_hub, cache_dir: dir
+
+        dir = System.get_env("HF_HOME") ->
+          config :hf_hub, cache_dir: Path.join(dir, "hub")
+
+        true ->
+          :ok
+      end
+
+      if System.get_env("HF_HUB_OFFLINE") in ~w(1 true) do
+        config :hf_hub, offline: true
+      end
+
+  Compile-time configuration also works for static values:
+
+      # config/config.exs
       config :hf_hub,
-        token: System.get_env("HF_TOKEN"),
-        cache_dir: Path.expand("~/.cache/huggingface"),
-        endpoint: "https://huggingface.co"
+        endpoint: "https://huggingface.co",
+        cache_dir: Path.expand("~/.cache/huggingface")
 
   ## Modules
 
@@ -76,9 +103,10 @@ defmodule HfHub do
   @doc """
   Check if offline mode is enabled.
 
-  Offline mode can be enabled via:
-  - `HF_HUB_OFFLINE=1` environment variable
-  - `Application.put_env(:hf_hub, :offline, true)`
+  Offline mode is read from `Application.get_env(:hf_hub, :offline, false)`.
+  Hosts wire `HF_HUB_OFFLINE` into that key from `config/runtime.exs` per
+  the `## Configuration` section above. Library code no longer reads the
+  environment directly.
 
   When offline mode is enabled, no network requests are made and only
   cached files are used.
@@ -91,8 +119,7 @@ defmodule HfHub do
   """
   @spec offline_mode?() :: boolean()
   def offline_mode? do
-    System.get_env("HF_HUB_OFFLINE") == "1" or
-      Application.get_env(:hf_hub, :offline, false)
+    Application.get_env(:hf_hub, :offline, false) == true
   end
 
   @doc """

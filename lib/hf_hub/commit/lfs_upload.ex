@@ -148,7 +148,12 @@ defmodule HfHub.Commit.LfsUpload do
   defp single_part_upload(href, content, headers, opts) do
     req_headers = headers_to_list(headers)
 
-    case Req.put(href, body: content, headers: req_headers, receive_timeout: lfs_upload_timeout(opts), pool_timeout: lfs_pool_timeout(opts)) do
+    case Req.put(href,
+           body: content,
+           headers: req_headers,
+           receive_timeout: lfs_upload_timeout(opts),
+           pool_timeout: lfs_pool_timeout(opts)
+         ) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
 
@@ -219,7 +224,11 @@ defmodule HfHub.Commit.LfsUpload do
 
   # Uploads a single part and returns the ETag
   defp upload_part(url, chunk, _part_num, opts) do
-    case Req.put(url, body: chunk, receive_timeout: lfs_upload_timeout(opts), pool_timeout: lfs_pool_timeout(opts)) do
+    case Req.put(url,
+           body: chunk,
+           receive_timeout: lfs_upload_timeout(opts),
+           pool_timeout: lfs_pool_timeout(opts)
+         ) do
       {:ok, %{status: 200, headers: headers}} ->
         etag = get_header(headers, "etag")
         {:ok, etag}
@@ -256,7 +265,11 @@ defmodule HfHub.Commit.LfsUpload do
         end)
     }
 
-    case Req.post(href, json: body, receive_timeout: lfs_upload_timeout(opts), pool_timeout: lfs_pool_timeout(opts)) do
+    case Req.post(href,
+           json: body,
+           receive_timeout: lfs_upload_timeout(opts),
+           pool_timeout: lfs_pool_timeout(opts)
+         ) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
 
@@ -285,7 +298,12 @@ defmodule HfHub.Commit.LfsUpload do
       |> Map.put("Content-Type", "application/json")
       |> headers_to_list()
 
-    case Req.post(href, json: body, headers: req_headers, receive_timeout: lfs_upload_timeout(opts), pool_timeout: lfs_pool_timeout(opts)) do
+    case Req.post(href,
+           json: body,
+           headers: req_headers,
+           receive_timeout: lfs_upload_timeout(opts),
+           pool_timeout: lfs_pool_timeout(opts)
+         ) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
 

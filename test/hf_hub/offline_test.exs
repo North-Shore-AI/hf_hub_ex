@@ -26,18 +26,14 @@ defmodule HfHub.OfflineTest do
       refute HfHub.offline_mode?()
     end
 
-    test "returns true when HF_HUB_OFFLINE=1 env var is set" do
+    test "does NOT read HF_HUB_OFFLINE=1 from the OS environment (boundary moved to host runtime config)" do
+      Application.delete_env(:hf_hub, :offline)
       System.put_env("HF_HUB_OFFLINE", "1")
-      assert HfHub.offline_mode?()
+      refute HfHub.offline_mode?()
     end
 
-    test "returns false when HF_HUB_OFFLINE is set to other values" do
-      System.put_env("HF_HUB_OFFLINE", "0")
-      refute HfHub.offline_mode?()
-
-      System.put_env("HF_HUB_OFFLINE", "false")
-      refute HfHub.offline_mode?()
-
+    test "does NOT treat OS env values as offline flags" do
+      Application.delete_env(:hf_hub, :offline)
       System.put_env("HF_HUB_OFFLINE", "true")
       refute HfHub.offline_mode?()
     end
@@ -52,10 +48,10 @@ defmodule HfHub.OfflineTest do
       refute HfHub.offline_mode?()
     end
 
-    test "env var takes precedence if set to 1" do
+    test "application config wins regardless of OS env (env is ignored)" do
       Application.put_env(:hf_hub, :offline, false)
       System.put_env("HF_HUB_OFFLINE", "1")
-      assert HfHub.offline_mode?()
+      refute HfHub.offline_mode?()
     end
 
     test "application config works when env var not set" do

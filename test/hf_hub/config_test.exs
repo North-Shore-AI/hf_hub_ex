@@ -35,26 +35,29 @@ defmodule HfHub.ConfigTest do
       assert HfHub.Config.cache_dir() == expected
     end
 
-    test "returns directory from HF_HUB_CACHE environment variable" do
-      System.put_env("HF_HUB_CACHE", "/tmp/hf_cache")
-      assert HfHub.Config.cache_dir() == "/tmp/hf_cache"
-    end
-
-    test "returns directory from HF_HOME environment variable" do
-      System.put_env("HF_HOME", "/tmp/hf_home")
-      assert HfHub.Config.cache_dir() == "/tmp/hf_home/hub"
-    end
-
-    test "prefers application config over environment variables" do
+    test "returns directory from application config" do
       Application.put_env(:hf_hub, :cache_dir, "/custom/cache")
-      System.put_env("HF_HUB_CACHE", "/tmp/hf_cache")
       assert HfHub.Config.cache_dir() == "/custom/cache"
     end
 
-    test "prefers HF_HUB_CACHE over HF_HOME" do
-      System.put_env("HF_HUB_CACHE", "/tmp/hf_cache")
-      System.put_env("HF_HOME", "/tmp/hf_home")
-      assert HfHub.Config.cache_dir() == "/tmp/hf_cache"
+    test "expands ~ in the configured cache_dir" do
+      Application.put_env(:hf_hub, :cache_dir, "~/my_hf_cache")
+      assert HfHub.Config.cache_dir() == Path.expand("~/my_hf_cache")
+    end
+
+    test "does NOT read HF_HUB_CACHE from the OS environment (boundary moved to host runtime config)" do
+      # Per Elixir runtime-configuration best practices, the library no
+      # longer reads OS env vars directly. Hosts wire HF_HUB_CACHE into
+      # Application.put_env(:hf_hub, :cache_dir, ...) via config/runtime.exs.
+      Application.delete_env(:hf_hub, :cache_dir)
+      System.put_env("HF_HUB_CACHE", "/tmp/hf_cache_should_be_ignored")
+      assert HfHub.Config.cache_dir() == Path.expand("~/.cache/huggingface")
+    end
+
+    test "does NOT read HF_HOME from the OS environment" do
+      Application.delete_env(:hf_hub, :cache_dir)
+      System.put_env("HF_HOME", "/tmp/hf_home_should_be_ignored")
+      assert HfHub.Config.cache_dir() == Path.expand("~/.cache/huggingface")
     end
   end
 

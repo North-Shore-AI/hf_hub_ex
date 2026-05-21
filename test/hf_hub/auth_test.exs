@@ -28,15 +28,18 @@ defmodule HfHub.AuthTest do
       assert {:ok, "hf_app_token"} = HfHub.Auth.get_token()
     end
 
-    test "returns token from HF_TOKEN environment variable" do
-      System.put_env("HF_TOKEN", "hf_env_token")
-      assert {:ok, "hf_env_token"} = HfHub.Auth.get_token()
+    test "does NOT read HF_TOKEN from the OS environment (boundary moved to host runtime config)" do
+      # Per Elixir runtime-configuration best practices, the library no
+      # longer reads OS env vars directly. Hosts wire HF_TOKEN into
+      # Application.put_env(:hf_hub, :token, ...) via config/runtime.exs.
+      Application.delete_env(:hf_hub, :token)
+      System.put_env("HF_TOKEN", "hf_env_token_should_be_ignored")
+      assert {:error, :no_token} = HfHub.Auth.get_token()
     end
 
-    test "prefers application config over environment variable" do
-      Application.put_env(:hf_hub, :token, "hf_app_token")
-      System.put_env("HF_TOKEN", "hf_env_token")
-      assert {:ok, "hf_app_token"} = HfHub.Auth.get_token()
+    test "treats empty string token in app config as :no_token" do
+      Application.put_env(:hf_hub, :token, "")
+      assert {:error, :no_token} = HfHub.Auth.get_token()
     end
   end
 

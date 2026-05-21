@@ -273,7 +273,10 @@ defmodule HfHub.Hub do
     File.write(path, json)
   end
 
+  # Reads offline mode from application configuration only. Hosts wire
+  # HF_HUB_OFFLINE into Application.put_env(:hf_hub, :offline, true) from
+  # their config/runtime.exs per Elixir runtime-config best practices.
   defp offline? do
-    System.get_env("HF_HUB_OFFLINE") in ~w(1 true)
+    Application.get_env(:hf_hub, :offline, false) == true
   end
 end

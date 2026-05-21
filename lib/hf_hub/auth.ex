@@ -27,12 +27,13 @@ defmodule HfHub.Auth do
         }
 
   @doc """
-  Retrieves the current HuggingFace token.
+  Retrieves the current HuggingFace token from application configuration.
 
-  Checks in order:
-  1. Application configuration
-  2. HF_TOKEN environment variable
-  3. Stored credentials file
+  Per Elixir runtime-configuration best practices, this library no longer
+  reads `HF_TOKEN` from the OS environment directly. Hosts wire env vars
+  into `Application.put_env(:hf_hub, :token, ...)` from their
+  `config/runtime.exs` (or via `HfHub.Auth.set_token/1` at runtime). See
+  the `HfHub` moduledoc for the recommended snippet.
 
   ## Examples
 
@@ -40,15 +41,9 @@ defmodule HfHub.Auth do
   """
   @spec get_token() :: {:ok, String.t()} | {:error, :no_token}
   def get_token do
-    cond do
-      token = Application.get_env(:hf_hub, :token) ->
-        {:ok, token}
-
-      token = System.get_env("HF_TOKEN") ->
-        {:ok, token}
-
-      true ->
-        {:error, :no_token}
+    case Application.get_env(:hf_hub, :token) do
+      token when is_binary(token) and token != "" -> {:ok, token}
+      _ -> {:error, :no_token}
     end
   end
 
