@@ -306,7 +306,17 @@ defmodule HfHub.Commit.LfsUpload do
         :space -> "spaces/"
       end
 
-    encoded = URI.encode(repo_id, &URI.char_unreserved?/1)
-    "/#{prefix}#{encoded}.git/info/lfs/objects/batch"
+    "/#{prefix}#{encode_repo_id(repo_id)}.git/info/lfs/objects/batch"
+  end
+
+  # Encodes a repo_id ("org/name" or bare "name") for use in URL path
+  # segments. The owner and name parts are URL-encoded individually so
+  # that special characters in either are escaped, but the literal "/"
+  # separator is preserved -- the HuggingFace API rejects URL-encoded
+  # slashes in repo_id path segments.
+  defp encode_repo_id(repo_id) do
+    repo_id
+    |> String.split("/", parts: 2)
+    |> Enum.map_join("/", fn part -> URI.encode(part, &URI.char_unreserved?/1) end)
   end
 end

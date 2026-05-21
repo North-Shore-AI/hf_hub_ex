@@ -1,7 +1,7 @@
 defmodule HfHub.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.2.1"
   @source_url "https://github.com/North-Shore-AI/hf_hub_ex"
 
   def project do
@@ -70,7 +70,7 @@ defmodule HfHub.MixProject do
         "GitHub" => @source_url,
         "HuggingFace" => "https://huggingface.co"
       },
-      files: ~w(lib assets mix.exs README.md LICENSE CHANGELOG.md docs)
+      files: ~w(lib assets mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 

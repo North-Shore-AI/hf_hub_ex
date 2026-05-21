@@ -36,7 +36,7 @@ Add `hf_hub` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:hf_hub, "~> 0.2.0"}
+    {:hf_hub, "~> 0.2.1"}
   ]
 end
 ```

@@ -447,8 +447,19 @@ defmodule HfHub.Commit do
 
   defp commit_path(repo_id, repo_type, revision) do
     prefix = repo_type_prefix(repo_type)
-    encoded_repo = URI.encode(repo_id, &URI.char_unreserved?/1)
-    "/api/#{prefix}/#{encoded_repo}/commit/#{revision}"
+    "/api/#{prefix}/#{encode_repo_id(repo_id)}/commit/#{revision}"
+  end
+
+  # Encodes a repo_id ("org/name" or bare "name") for use in URL path
+  # segments. The owner and name parts are URL-encoded individually so
+  # that special characters in either are escaped, but the literal "/"
+  # separator is preserved -- the HuggingFace API rejects URL-encoded
+  # slashes in repo_id path segments with:
+  #   {"message":"Invalid repo name: <id> - repo name includes an url-encoded slash"}
+  defp encode_repo_id(repo_id) do
+    repo_id
+    |> String.split("/", parts: 2)
+    |> Enum.map_join("/", fn part -> URI.encode(part, &URI.char_unreserved?/1) end)
   end
 
   defp repo_type_prefix(:model), do: "models"
