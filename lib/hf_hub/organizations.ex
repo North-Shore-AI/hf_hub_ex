@@ -16,6 +16,7 @@ defmodule HfHub.Organizations do
   """
 
   alias HfHub.HTTP
+  alias HfHub.Path, as: HubPath
   alias HfHub.Users.{Organization, User}
 
   @doc """
@@ -39,7 +40,7 @@ defmodule HfHub.Organizations do
   def get(org_name, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/organizations/#{encode(org_name)}", token: token) do
+    case HTTP.get("/api/organizations/#{encode_seg(org_name)}", token: token) do
       {:ok, response} -> {:ok, Organization.from_response(response)}
       error -> error
     end
@@ -65,7 +66,7 @@ defmodule HfHub.Organizations do
   def list_members(org_name, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/organizations/#{encode(org_name)}/members", token: token) do
+    case HTTP.get("/api/organizations/#{encode_seg(org_name)}/members", token: token) do
       {:ok, members} when is_list(members) ->
         {:ok, Enum.map(members, &User.from_response/1)}
 
@@ -79,5 +80,5 @@ defmodule HfHub.Organizations do
 
   # Private helpers
 
-  defp encode(s), do: URI.encode(s, &URI.char_unreserved?/1)
+  defp encode_seg(s), do: HubPath.encode_segment(s)
 end

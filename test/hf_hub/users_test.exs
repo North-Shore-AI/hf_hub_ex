@@ -140,8 +140,7 @@ defmodule HfHub.UsersTest do
 
   describe "like/2" do
     test "likes a model repository", %{bypass: bypass} do
-      # repo_id "user/model" is URL-encoded to "user%2Fmodel"
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Fmodel/like", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/model/like", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, Jason.encode!(%{}))
@@ -151,7 +150,7 @@ defmodule HfHub.UsersTest do
     end
 
     test "likes a dataset repository", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/datasets/user%2Fdataset/like", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/datasets/user/dataset/like", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, Jason.encode!(%{}))
@@ -163,7 +162,7 @@ defmodule HfHub.UsersTest do
 
   describe "unlike/2" do
     test "unlikes a repository", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/models/user%2Fmodel/like", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/models/user/model/like", fn conn ->
         Plug.Conn.resp(conn, 204, "")
       end)
 

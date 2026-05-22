@@ -230,15 +230,20 @@ defmodule HfHub.Repo do
     repo_type = opts[:repo_type] || :model
     revision = opts[:revision] || "main"
 
-    # "datasets/", "spaces/", or "" for models
+    # Mirror Python `hf_hub_url/file_download.py:199`:
+    #   * repo_id keeps the literal owner/name slash
+    #   * revision = quote(safe="")  -> encode every slash
+    #   * filename = quote()         -> default safe="/" keeps subpath separators
+    encoded_repo = HubPath.encode_repo_id(repo_id)
+    encoded_revision = HubPath.encode_segment(revision)
+    encoded_filename = HubPath.encode_path(filename)
     prefix = repo_type_url_prefix(repo_type)
 
-    # URL pattern: /{prefix}{repo_id}/resolve/{rev}/{filename}
     path =
       if prefix == "" do
-        "/#{repo_id}/resolve/#{revision}/#{filename}"
+        "/#{encoded_repo}/resolve/#{encoded_revision}/#{encoded_filename}"
       else
-        "/#{prefix}/#{repo_id}/resolve/#{revision}/#{filename}"
+        "/#{prefix}/#{encoded_repo}/resolve/#{encoded_revision}/#{encoded_filename}"
       end
 
     url = build_full_url(path)

@@ -246,6 +246,37 @@ defmodule HfHub.HTTPTest do
     end
   end
 
+  describe "delete/3 with JSON body" do
+    # Python `huggingface_hub` `delete_repo` requires a JSON payload on
+    # DELETE /api/repos/delete. Pin the contract that the body reaches the
+    # wire when callers use the 3-arity form.
+    test "writes JSON body to the wire", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "DELETE", "/api/repos/delete", fn conn ->
+        {:ok, raw, conn} = Plug.Conn.read_body(conn)
+        payload = Jason.decode!(raw)
+
+        assert payload == %{
+                 "name" => "repo",
+                 "organization" => "org",
+                 "type" => "model"
+               }
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, "{}")
+      end)
+
+      url = "http://localhost:#{bypass.port}/api/repos/delete"
+
+      assert {:ok, _} =
+               HfHub.HTTP.delete(
+                 url,
+                 %{name: "repo", organization: "org", type: "model"},
+                 []
+               )
+    end
+  end
+
   describe "post_action/3" do
     test "returns :ok on 200", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/test", fn conn ->

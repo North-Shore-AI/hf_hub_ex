@@ -19,6 +19,7 @@ defmodule HfHub.AccessRequests do
 
   alias HfHub.AccessRequests.AccessRequest
   alias HfHub.{Auth, HTTP}
+  alias HfHub.Path, as: HubPath
 
   @type status :: :pending | :accepted | :rejected
   @type repo_type :: :model | :dataset | :space
@@ -131,7 +132,7 @@ defmodule HfHub.AccessRequests do
     repo_type = opts[:repo_type] || :model
 
     path =
-      "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/user-access-request/handle?user=#{encode(user)}"
+      "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/user-access-request/handle?user=#{encode_seg(user)}"
 
     HTTP.delete(path, token: token)
   end
@@ -156,7 +157,7 @@ defmodule HfHub.AccessRequests do
     repo_type = opts[:repo_type] || :model
 
     body = %{"user" => user}
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/user-access-request/grant"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/user-access-request/grant"
 
     HTTP.post_action(path, body, token: token)
   end
@@ -167,7 +168,7 @@ defmodule HfHub.AccessRequests do
     token = opts[:token] || get_token_value()
     repo_type = opts[:repo_type] || :model
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/user-access-request/#{status}"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/user-access-request/#{status}"
 
     case HTTP.get(path, token: token) do
       {:ok, requests} when is_list(requests) ->
@@ -190,7 +191,7 @@ defmodule HfHub.AccessRequests do
       "status" => if(action == :accept, do: "accepted", else: "rejected")
     }
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/user-access-request/handle"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/user-access-request/handle"
 
     HTTP.post_action(path, body, token: token)
   end
@@ -199,7 +200,9 @@ defmodule HfHub.AccessRequests do
   defp type_prefix(:dataset), do: "datasets"
   defp type_prefix(:space), do: "spaces"
 
-  defp encode(s), do: URI.encode(s, &URI.char_unreserved?/1)
+  defp encode_seg(s), do: HubPath.encode_segment(s)
+
+  defp encode_repo(s), do: HubPath.encode_repo_id(s)
 
   defp get_token_value do
     case Auth.get_token() do

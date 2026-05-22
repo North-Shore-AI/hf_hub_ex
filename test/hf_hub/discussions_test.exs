@@ -23,7 +23,7 @@ defmodule HfHub.DiscussionsTest do
 
   describe "list/2" do
     test "lists all discussions for a model", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Fmodel/discussions", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/model/discussions", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -65,7 +65,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "handles list response format (without wrapper)", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Fmodel/discussions", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/model/discussions", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -81,7 +81,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "filters by status", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Fmodel/discussions", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/model/discussions", fn conn ->
         assert conn.query_string =~ "status=open"
 
         conn
@@ -93,7 +93,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "filters by author", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Fmodel/discussions", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/model/discussions", fn conn ->
         assert conn.query_string =~ "author=testuser"
 
         conn
@@ -105,7 +105,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "lists discussions for datasets", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/datasets/org%2Fdataset/discussions", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/datasets/org/dataset/discussions", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, Jason.encode!(%{"discussions" => []}))
@@ -115,7 +115,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "lists discussions for spaces", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/org%2Fspace/discussions", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/org/space/discussions", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, Jason.encode!(%{"discussions" => []}))
@@ -125,7 +125,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "handles 404 error", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Fmissing/discussions", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/missing/discussions", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -135,7 +135,7 @@ defmodule HfHub.DiscussionsTest do
 
   describe "get/3" do
     test "gets discussion details", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Fmodel/discussions/42", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/model/discussions/42", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -173,7 +173,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "gets pull request details", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Fmodel/discussions/10", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/model/discussions/10", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -198,7 +198,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "handles 404 error", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Fmodel/discussions/999", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/model/discussions/999", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -208,7 +208,7 @@ defmodule HfHub.DiscussionsTest do
 
   describe "create/3" do
     test "creates a new discussion", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/org%2Fmodel/discussions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/org/model/discussions", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -242,7 +242,7 @@ defmodule HfHub.DiscussionsTest do
     end
 
     test "requires authentication", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/org%2Fmodel/discussions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/org/model/discussions", fn conn ->
         Plug.Conn.resp(conn, 401, "")
       end)
 
@@ -252,7 +252,7 @@ defmodule HfHub.DiscussionsTest do
 
   describe "create_pr/3" do
     test "creates a pull request", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/org%2Fmodel/discussions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/org/model/discussions", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -284,7 +284,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/discussions/42/comment",
+        "/api/models/org/model/discussions/42/comment",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -316,7 +316,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "PUT",
-        "/api/models/org%2Fmodel/discussions/42/comment/abc123",
+        "/api/models/org/model/discussions/42/comment/abc123",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -351,7 +351,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "PUT",
-        "/api/models/org%2Fmodel/discussions/42/comment/abc123/hide",
+        "/api/models/org/model/discussions/42/comment/abc123/hide",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -379,7 +379,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "PUT",
-        "/api/models/org%2Fmodel/discussions/42/status",
+        "/api/models/org/model/discussions/42/status",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -406,7 +406,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "PUT",
-        "/api/models/org%2Fmodel/discussions/42/status",
+        "/api/models/org/model/discussions/42/status",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -432,7 +432,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "PUT",
-        "/api/models/org%2Fmodel/discussions/42/status",
+        "/api/models/org/model/discussions/42/status",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -457,7 +457,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "PUT",
-        "/api/models/org%2Fmodel/discussions/42/status",
+        "/api/models/org/model/discussions/42/status",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -482,7 +482,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/discussions/10/merge",
+        "/api/models/org/model/discussions/10/merge",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -506,7 +506,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/discussions/10/merge",
+        "/api/models/org/model/discussions/10/merge",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -528,7 +528,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/discussions/42/merge",
+        "/api/models/org/model/discussions/42/merge",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -546,7 +546,7 @@ defmodule HfHub.DiscussionsTest do
       Bypass.expect_once(
         bypass,
         "PUT",
-        "/api/models/org%2Fmodel/discussions/42/title",
+        "/api/models/org/model/discussions/42/title",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)

@@ -16,7 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `super_squash/2` now posts to `/super-squash/{branch}` with a message body.
 - Align repository-management routes used by the artifact-publishing flow:
   - `update_settings/2` and `revision_exists?/3` preserve literal repo slashes;
-  - `delete/2` now uses Python-compatible `DELETE /api/repos/delete` with JSON body.
+  - `delete/2` now uses Python-compatible `DELETE /api/repos/delete` with JSON body;
+  - `file_exists?/3` now encodes `repo_id` (literal slash), `revision`
+    (`quote(safe="")` shape), and `filename` (`quote()` shape, preserving
+    subpath separators), matching `huggingface_hub.file_download.hf_hub_url`.
+- Eliminate URL-encoded repo slashes across every remaining surface that calls
+  into the HuggingFace API. The first pass fixed `Git`, `Commit`, and `Repo`;
+  this pass covers `Users`, `Spaces` (including `duplicate/2`), `Discussions`,
+  `AccessRequests`, `Collections`, and `Organizations`. Every module-private
+  `defp encode(repo_id)` helper is now routed through the internal "HfHub.Path" repo-id encoder
+  so namespaced ids never reach the Hub as `org%2Frepo`.
 - **LFS multipart upload protocol** (the `Cannot PUT /api/complete_multipart` bug):
   - Multipart detection now reads the `chunk_size` header (case-insensitive)
     instead of the wrong `x-amz-meta-chunk-size` key. Previously, files that
@@ -39,11 +48,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevent URL-encoded slashes in repository IDs
 
 ### Internal
-- Test fixtures across `commit_test.exs`, `commit/folder_upload_test.exs`, and
-  `commit/lfs_upload_test.exs` now expect literal `/` between org and repo
-  name, matching the corrected URL encoding shipped in `0.2.1`. (Previously
-  these 26 fixtures hard-coded the broken `%2F` form and failed against the
-  fixed library code.)
+- Test fixtures across `commit_test.exs`, `commit/folder_upload_test.exs`,
+  `commit/lfs_upload_test.exs`, `users_test.exs`, `spaces_test.exs`,
+  `discussions_test.exs`, `access_requests_test.exs`, `collections_test.exs`,
+  and `repo_test.exs` now expect literal `/` between org and repo name,
+  matching the corrected URL encoding shipped in `0.2.1` and extended in
+  `0.3.0`.
+- Add `HTTP.delete/3` contract test pinning that JSON bodies reach the wire,
+  preventing future regressions on Python-compatible `DELETE /api/repos/delete`.
+- Add `Repo.file_exists?/3` contract tests for revision encoding and dataset
+  prefix handling.
 
 ### Added
 - Add an internal path helper with regression tests for repo-id and path-segment encoding.

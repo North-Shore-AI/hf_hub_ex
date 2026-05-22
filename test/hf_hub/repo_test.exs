@@ -236,6 +236,38 @@ defmodule HfHub.RepoTest do
 
       assert Repo.file_exists?("org/repo", "model.safetensors", token: "token")
     end
+
+    test "encodes revision segment while preserving repo slash and filename path", %{bypass: bypass} do
+      # Python: revision = quote(revision, safe=""), filename = quote(filename)
+      # default safe="/" so subpath separators are kept.
+      Bypass.expect_once(
+        bypass,
+        "HEAD",
+        "/org/repo/resolve/feature%2Ffoo/checkpoints/model%20%231.safetensors",
+        fn conn -> Plug.Conn.resp(conn, 200, "") end
+      )
+
+      assert Repo.file_exists?("org/repo", "checkpoints/model #1.safetensors",
+               revision: "feature/foo",
+               token: "token"
+             )
+    end
+
+    test "uses dataset prefix without URL-encoded slash", %{bypass: bypass} do
+      Bypass.expect_once(
+        bypass,
+        "HEAD",
+        "/datasets/my-org/my-ds/resolve/main/data/train.json",
+        fn conn ->
+          Plug.Conn.resp(conn, 200, "")
+        end
+      )
+
+      assert Repo.file_exists?("my-org/my-ds", "data/train.json",
+               repo_type: :dataset,
+               token: "token"
+             )
+    end
   end
 
   describe "revision_exists?/3" do

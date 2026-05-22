@@ -20,6 +20,7 @@ defmodule HfHub.Users do
   """
 
   alias HfHub.{Auth, HTTP}
+  alias HfHub.Path, as: HubPath
   alias HfHub.Users.User
 
   @doc """
@@ -43,7 +44,7 @@ defmodule HfHub.Users do
   def get(username, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/users/#{encode(username)}", token: token) do
+    case HTTP.get("/api/users/#{encode_seg(username)}", token: token) do
       {:ok, response} -> {:ok, User.from_response(response)}
       error -> error
     end
@@ -69,7 +70,7 @@ defmodule HfHub.Users do
   def list_followers(username, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/users/#{encode(username)}/followers", token: token) do
+    case HTTP.get("/api/users/#{encode_seg(username)}/followers", token: token) do
       {:ok, users} when is_list(users) ->
         {:ok, Enum.map(users, &User.from_response/1)}
 
@@ -100,7 +101,7 @@ defmodule HfHub.Users do
   def list_following(username, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/users/#{encode(username)}/following", token: token) do
+    case HTTP.get("/api/users/#{encode_seg(username)}/following", token: token) do
       {:ok, users} when is_list(users) ->
         {:ok, Enum.map(users, &User.from_response/1)}
 
@@ -131,7 +132,7 @@ defmodule HfHub.Users do
   def list_liked_repos(username, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/users/#{encode(username)}/likes", token: token) do
+    case HTTP.get("/api/users/#{encode_seg(username)}/likes", token: token) do
       {:ok, %{"likes" => likes}} when is_list(likes) ->
         {:ok, likes}
 
@@ -170,7 +171,7 @@ defmodule HfHub.Users do
     token = opts[:token] || get_token()
     repo_type = opts[:repo_type] || :model
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/like"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/like"
     HTTP.post_action(path, nil, token: token)
   end
 
@@ -197,7 +198,7 @@ defmodule HfHub.Users do
     token = opts[:token] || get_token()
     repo_type = opts[:repo_type] || :model
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/like"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/like"
     HTTP.delete(path, token: token)
   end
 
@@ -222,7 +223,7 @@ defmodule HfHub.Users do
     token = opts[:token]
     repo_type = opts[:repo_type] || :model
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/likers"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/likers"
 
     case HTTP.get(path, token: token) do
       {:ok, users} when is_list(users) ->
@@ -242,7 +243,9 @@ defmodule HfHub.Users do
   defp type_prefix(:dataset), do: "datasets"
   defp type_prefix(:space), do: "spaces"
 
-  defp encode(s), do: URI.encode(s, &URI.char_unreserved?/1)
+  defp encode_seg(s), do: HubPath.encode_segment(s)
+
+  defp encode_repo(s), do: HubPath.encode_repo_id(s)
 
   defp get_token do
     case Auth.get_token() do

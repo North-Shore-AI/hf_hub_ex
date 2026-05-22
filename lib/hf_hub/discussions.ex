@@ -23,6 +23,7 @@ defmodule HfHub.Discussions do
 
   alias HfHub.{Auth, HTTP}
   alias HfHub.Discussions.{Comment, Discussion, DiscussionDetails}
+  alias HfHub.Path, as: HubPath
 
   @type status :: :open | :closed | :merged | :draft | :all
   @type repo_type :: :model | :dataset | :space
@@ -54,7 +55,7 @@ defmodule HfHub.Discussions do
       |> maybe_put(:status, status_to_string(opts[:status]))
       |> Enum.to_list()
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions"
 
     case HTTP.get(path, token: token, params: params) do
       {:ok, %{"discussions" => discussions}} ->
@@ -89,7 +90,7 @@ defmodule HfHub.Discussions do
     token = opts[:token]
     repo_type = opts[:repo_type] || :model
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions/#{discussion_num}"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions/#{discussion_num}"
 
     case HTTP.get(path, token: token) do
       {:ok, response} -> {:ok, DiscussionDetails.from_response(response)}
@@ -125,7 +126,7 @@ defmodule HfHub.Discussions do
       }
       |> maybe_put("description", opts[:description])
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions"
+    path = "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions"
 
     case HTTP.post(path, body, token: token) do
       {:ok, response} -> {:ok, DiscussionDetails.from_response(response)}
@@ -172,7 +173,9 @@ defmodule HfHub.Discussions do
     repo_type = opts[:repo_type] || :model
 
     body = %{"comment" => content}
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions/#{discussion_num}/comment"
+
+    path =
+      "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions/#{discussion_num}/comment"
 
     case HTTP.post(path, body, token: token) do
       {:ok, response} -> {:ok, Comment.from_response(response)}
@@ -201,7 +204,7 @@ defmodule HfHub.Discussions do
     body = %{"content" => new_content}
 
     path =
-      "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions/#{discussion_num}/comment/#{comment_id}"
+      "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions/#{discussion_num}/comment/#{comment_id}"
 
     case HTTP.put(path, body, token: token) do
       {:ok, response} -> {:ok, Comment.from_response(response)}
@@ -228,7 +231,7 @@ defmodule HfHub.Discussions do
     repo_type = opts[:repo_type] || :model
 
     path =
-      "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions/#{discussion_num}/comment/#{comment_id}/hide"
+      "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions/#{discussion_num}/comment/#{comment_id}/hide"
 
     case HTTP.put(path, %{}, token: token) do
       {:ok, response} -> {:ok, Comment.from_response(response)}
@@ -297,7 +300,8 @@ defmodule HfHub.Discussions do
       %{"status" => status_to_string(new_status)}
       |> maybe_put("comment", opts[:comment])
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions/#{discussion_num}/status"
+    path =
+      "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions/#{discussion_num}/status"
 
     case HTTP.put(path, body, token: token) do
       {:ok, response} -> {:ok, Discussion.from_response(response)}
@@ -326,7 +330,8 @@ defmodule HfHub.Discussions do
 
     body = maybe_put(%{}, "comment", opts[:comment])
 
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions/#{discussion_num}/merge"
+    path =
+      "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions/#{discussion_num}/merge"
 
     case HTTP.post(path, body, token: token) do
       {:ok, response} -> {:ok, Discussion.from_response(response)}
@@ -353,7 +358,9 @@ defmodule HfHub.Discussions do
     repo_type = opts[:repo_type] || :model
 
     body = %{"title" => new_title}
-    path = "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/discussions/#{discussion_num}/title"
+
+    path =
+      "/api/#{type_prefix(repo_type)}/#{encode_repo(repo_id)}/discussions/#{discussion_num}/title"
 
     case HTTP.put(path, body, token: token) do
       {:ok, response} -> {:ok, Discussion.from_response(response)}
@@ -367,7 +374,7 @@ defmodule HfHub.Discussions do
   defp type_prefix(:dataset), do: "datasets"
   defp type_prefix(:space), do: "spaces"
 
-  defp encode(s), do: URI.encode(s, &URI.char_unreserved?/1)
+  defp encode_repo(s), do: HubPath.encode_repo_id(s)
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

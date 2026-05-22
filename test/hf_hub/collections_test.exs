@@ -155,7 +155,7 @@ defmodule HfHub.CollectionsTest do
 
   describe "get/2" do
     test "gets collection details with items", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/collections/user%2Fmy-collection-abc123", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/collections/user/my-collection-abc123", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -206,7 +206,7 @@ defmodule HfHub.CollectionsTest do
     end
 
     test "handles 404 error", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/collections/user%2Fmissing", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/collections/user/missing", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -214,7 +214,7 @@ defmodule HfHub.CollectionsTest do
     end
 
     test "handles 403 for private collection", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/collections/user%2Fprivate", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/collections/user/private", fn conn ->
         Plug.Conn.resp(conn, 403, "")
       end)
 
@@ -353,7 +353,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "PATCH",
-        "/api/collections/user%2Fmy-collection-123",
+        "/api/collections/user/my-collection-123",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -390,7 +390,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "PATCH",
-        "/api/collections/user%2Fmy-collection-123",
+        "/api/collections/user/my-collection-123",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -421,7 +421,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "PATCH",
-        "/api/collections/user%2Fmy-collection-123",
+        "/api/collections/user/my-collection-123",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -456,7 +456,7 @@ defmodule HfHub.CollectionsTest do
     end
 
     test "handles 404 error", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "PATCH", "/api/collections/user%2Fmissing", fn conn ->
+      Bypass.expect_once(bypass, "PATCH", "/api/collections/user/missing", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -467,7 +467,7 @@ defmodule HfHub.CollectionsTest do
 
   describe "delete/2" do
     test "deletes a collection", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/collections/user%2Fmy-collection-123", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/collections/user/my-collection-123", fn conn ->
         Plug.Conn.resp(conn, 204, "")
       end)
 
@@ -475,7 +475,7 @@ defmodule HfHub.CollectionsTest do
     end
 
     test "handles missing_ok when collection doesn't exist", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/collections/user%2Fmissing", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/collections/user/missing", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -483,7 +483,7 @@ defmodule HfHub.CollectionsTest do
     end
 
     test "returns error when collection doesn't exist without missing_ok", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/collections/user%2Fmissing", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/collections/user/missing", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -491,7 +491,7 @@ defmodule HfHub.CollectionsTest do
     end
 
     test "requires authentication", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/collections/user%2Fcollection", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/collections/user/collection", fn conn ->
         Plug.Conn.resp(conn, 401, "")
       end)
 
@@ -504,7 +504,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/collections/user%2Fmy-collection-123/items",
+        "/api/collections/user/my-collection-123/items",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -548,7 +548,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/collections/user%2Fmy-collection-123/items",
+        "/api/collections/user/my-collection-123/items",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -581,7 +581,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/collections/user%2Fmy-collection-123/items",
+        "/api/collections/user/my-collection-123/items",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -614,7 +614,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/collections/user%2Fmy-collection-123/items",
+        "/api/collections/user/my-collection-123/items",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -647,7 +647,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/collections/user%2Fmy-collection-123/items",
+        "/api/collections/user/my-collection-123/items",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -666,7 +666,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/collections/user%2Fmy-collection-123/items",
+        "/api/collections/user/my-collection-123/items",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -684,7 +684,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/collections/user%2Fcollection/items",
+        "/api/collections/user/collection/items",
         fn conn ->
           Plug.Conn.resp(conn, 401, "")
         end
@@ -700,7 +700,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "PATCH",
-        "/api/collections/user%2Fmy-collection-123/items/item-abc",
+        "/api/collections/user/my-collection-123/items/item-abc",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -735,7 +735,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "PATCH",
-        "/api/collections/user%2Fmy-collection-123/items/item-abc",
+        "/api/collections/user/my-collection-123/items/item-abc",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -769,7 +769,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "PATCH",
-        "/api/collections/user%2Fmy-collection/items/missing",
+        "/api/collections/user/my-collection/items/missing",
         fn conn ->
           Plug.Conn.resp(conn, 404, "")
         end
@@ -788,7 +788,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "DELETE",
-        "/api/collections/user%2Fmy-collection-123/items/item-abc",
+        "/api/collections/user/my-collection-123/items/item-abc",
         fn conn ->
           Plug.Conn.resp(conn, 204, "")
         end
@@ -802,7 +802,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "DELETE",
-        "/api/collections/user%2Fmy-collection/items/missing",
+        "/api/collections/user/my-collection/items/missing",
         fn conn ->
           Plug.Conn.resp(conn, 404, "")
         end
@@ -819,7 +819,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "DELETE",
-        "/api/collections/user%2Fmy-collection/items/missing",
+        "/api/collections/user/my-collection/items/missing",
         fn conn ->
           Plug.Conn.resp(conn, 404, "")
         end
@@ -833,7 +833,7 @@ defmodule HfHub.CollectionsTest do
       Bypass.expect_once(
         bypass,
         "DELETE",
-        "/api/collections/user%2Fcollection/items/item",
+        "/api/collections/user/collection/items/item",
         fn conn ->
           Plug.Conn.resp(conn, 401, "")
         end

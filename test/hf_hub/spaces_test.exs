@@ -23,7 +23,7 @@ defmodule HfHub.SpacesTest do
 
   describe "get_runtime/2" do
     test "gets runtime for a running space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fmy-space/runtime", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/my-space/runtime", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -51,7 +51,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "gets runtime for a paused space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fpaused-space/runtime", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/paused-space/runtime", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -70,7 +70,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "gets runtime for a building space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fbuilding-space/runtime", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/building-space/runtime", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -87,7 +87,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "gets runtime for a sleeping space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fsleeping-space/runtime", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/sleeping-space/runtime", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -104,7 +104,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 404 error", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fmissing/runtime", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/missing/runtime", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -112,7 +112,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 403 for private space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fprivate-space/runtime", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/private-space/runtime", fn conn ->
         Plug.Conn.resp(conn, 403, "")
       end)
 
@@ -122,7 +122,7 @@ defmodule HfHub.SpacesTest do
 
   describe "get_variables/2" do
     test "gets all variables", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fmy-space/variables", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/my-space/variables", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -151,7 +151,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles empty variables", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fmy-space/variables", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/my-space/variables", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, Jason.encode!(%{}))
@@ -162,7 +162,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 404 error", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fmissing/variables", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/missing/variables", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -172,7 +172,7 @@ defmodule HfHub.SpacesTest do
 
   describe "add_secret/4" do
     test "adds a secret", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/secrets", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/secrets", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -189,7 +189,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "adds a secret with description", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/secrets", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/secrets", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -209,7 +209,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 401 unauthorized", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/secrets", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/secrets", fn conn ->
         Plug.Conn.resp(conn, 401, "")
       end)
 
@@ -220,7 +220,7 @@ defmodule HfHub.SpacesTest do
 
   describe "delete_secret/3" do
     test "deletes a secret", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user%2Fmy-space/secrets/API_KEY", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user/my-space/secrets/API_KEY", fn conn ->
         Plug.Conn.resp(conn, 204, "")
       end)
 
@@ -228,7 +228,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 404 when secret not found", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user%2Fmy-space/secrets/MISSING", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user/my-space/secrets/MISSING", fn conn ->
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -239,7 +239,7 @@ defmodule HfHub.SpacesTest do
 
   describe "add_variable/4" do
     test "adds a variable", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/variables", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/variables", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -263,7 +263,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "adds a variable with description", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/variables", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/variables", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -290,7 +290,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 401 unauthorized", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/variables", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/variables", fn conn ->
         Plug.Conn.resp(conn, 401, "")
       end)
 
@@ -301,7 +301,7 @@ defmodule HfHub.SpacesTest do
 
   describe "delete_variable/3" do
     test "deletes a variable", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user%2Fmy-space/variables/DEBUG", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user/my-space/variables/DEBUG", fn conn ->
         Plug.Conn.resp(conn, 204, "")
       end)
 
@@ -312,7 +312,7 @@ defmodule HfHub.SpacesTest do
       Bypass.expect_once(
         bypass,
         "DELETE",
-        "/api/spaces/user%2Fmy-space/variables/MISSING",
+        "/api/spaces/user/my-space/variables/MISSING",
         fn conn ->
           Plug.Conn.resp(conn, 404, "")
         end
@@ -325,7 +325,7 @@ defmodule HfHub.SpacesTest do
 
   describe "request_hardware/3" do
     test "requests GPU hardware", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/hardware", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/hardware", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -349,7 +349,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "requests hardware with sleep time", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/hardware", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/hardware", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -378,7 +378,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "downgrades to CPU", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/hardware", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/hardware", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -414,7 +414,7 @@ defmodule HfHub.SpacesTest do
       ]
 
       for {atom, string} <- hardware_mappings do
-        Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/hardware", fn conn ->
+        Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/hardware", fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
 
@@ -436,7 +436,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 401 unauthorized", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/hardware", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/hardware", fn conn ->
         Plug.Conn.resp(conn, 401, "")
       end)
 
@@ -447,7 +447,7 @@ defmodule HfHub.SpacesTest do
 
   describe "set_sleep_time/3" do
     test "sets sleep time", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/sleeptime", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/sleeptime", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -469,7 +469,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "disables sleep with -1", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/sleeptime", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/sleeptime", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -493,7 +493,7 @@ defmodule HfHub.SpacesTest do
 
   describe "request_storage/3" do
     test "requests storage", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/storage", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/storage", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -515,7 +515,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "requests medium storage", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/storage", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/storage", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -537,7 +537,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "requests large storage", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/storage", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/storage", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -561,7 +561,7 @@ defmodule HfHub.SpacesTest do
 
   describe "delete_storage/2" do
     test "deletes storage", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user%2Fmy-space/storage", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user/my-space/storage", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -578,11 +578,11 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 204 response and fetches runtime", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user%2Fmy-space/storage", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/spaces/user/my-space/storage", fn conn ->
         Plug.Conn.resp(conn, 204, "")
       end)
 
-      Bypass.expect_once(bypass, "GET", "/api/spaces/user%2Fmy-space/runtime", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/spaces/user/my-space/runtime", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -601,7 +601,7 @@ defmodule HfHub.SpacesTest do
 
   describe "pause/2" do
     test "pauses a space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/pause", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/pause", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -618,7 +618,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 401 unauthorized", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/pause", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/pause", fn conn ->
         Plug.Conn.resp(conn, 401, "")
       end)
 
@@ -628,7 +628,7 @@ defmodule HfHub.SpacesTest do
 
   describe "restart/2" do
     test "restarts a space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/restart", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/restart", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         # Body should be empty for normal restart
         assert body == "" or body == "null"
@@ -649,7 +649,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "factory reboots a space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fmy-space/restart", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/my-space/restart", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -675,7 +675,7 @@ defmodule HfHub.SpacesTest do
 
   describe "duplicate/2" do
     test "duplicates a space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/gradio%2Fhello_world/duplicate", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/gradio/hello_world/duplicate", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -692,7 +692,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "duplicates with target id", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/gradio%2Fhello_world/duplicate", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/gradio/hello_world/duplicate", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -715,7 +715,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "duplicates with all options", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/gradio%2Fhello_world/duplicate", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/gradio/hello_world/duplicate", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
 
@@ -749,7 +749,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 401 unauthorized", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/gradio%2Fhello_world/duplicate", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/gradio/hello_world/duplicate", fn conn ->
         Plug.Conn.resp(conn, 401, "")
       end)
 
@@ -758,7 +758,7 @@ defmodule HfHub.SpacesTest do
     end
 
     test "handles 403 forbidden", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/private%2Fspace/duplicate", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/private/space/duplicate", fn conn ->
         Plug.Conn.resp(conn, 403, "")
       end)
 

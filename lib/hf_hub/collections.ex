@@ -26,6 +26,7 @@ defmodule HfHub.Collections do
 
   alias HfHub.{Auth, HTTP}
   alias HfHub.Collections.{Collection, CollectionItem}
+  alias HfHub.Path, as: HubPath
 
   @type item_type :: :model | :dataset | :space | :paper
   @type sort :: :last_modified | :trending | :upvotes
@@ -84,7 +85,7 @@ defmodule HfHub.Collections do
   def get(slug, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/collections/#{encode(slug)}", token: token) do
+    case HTTP.get("/api/collections/#{encode_repo(slug)}", token: token) do
       {:ok, response} -> {:ok, Collection.from_response(response)}
       error -> error
     end
@@ -160,7 +161,7 @@ defmodule HfHub.Collections do
       |> maybe_put("position", opts[:position])
       |> maybe_put("theme", opts[:theme])
 
-    case HTTP.patch("/api/collections/#{encode(slug)}", body, token: token) do
+    case HTTP.patch("/api/collections/#{encode_repo(slug)}", body, token: token) do
       {:ok, response} -> {:ok, Collection.from_response(response)}
       error -> error
     end
@@ -184,7 +185,7 @@ defmodule HfHub.Collections do
     token = opts[:token] || get_token()
     missing_ok = Keyword.get(opts, :missing_ok, false)
 
-    case HTTP.delete("/api/collections/#{encode(slug)}", token: token) do
+    case HTTP.delete("/api/collections/#{encode_repo(slug)}", token: token) do
       :ok -> :ok
       {:ok, _} -> :ok
       {:error, :not_found} when missing_ok -> :ok
@@ -225,7 +226,7 @@ defmodule HfHub.Collections do
       %{"itemId" => item_id, "itemType" => Atom.to_string(item_type)}
       |> maybe_put("note", opts[:note])
 
-    case HTTP.post("/api/collections/#{encode(slug)}/items", body, token: token) do
+    case HTTP.post("/api/collections/#{encode_repo(slug)}/items", body, token: token) do
       {:ok, response} ->
         {:ok, CollectionItem.from_response(response)}
 
@@ -261,7 +262,7 @@ defmodule HfHub.Collections do
       |> maybe_put("note", opts[:note])
       |> maybe_put("position", opts[:position])
 
-    path = "/api/collections/#{encode(slug)}/items/#{item_object_id}"
+    path = "/api/collections/#{encode_repo(slug)}/items/#{item_object_id}"
 
     case HTTP.patch(path, body, token: token) do
       {:ok, response} -> {:ok, CollectionItem.from_response(response)}
@@ -286,7 +287,7 @@ defmodule HfHub.Collections do
     token = opts[:token] || get_token()
     missing_ok = Keyword.get(opts, :missing_ok, false)
 
-    path = "/api/collections/#{encode(slug)}/items/#{item_object_id}"
+    path = "/api/collections/#{encode_repo(slug)}/items/#{item_object_id}"
 
     case HTTP.delete(path, token: token) do
       :ok -> :ok
@@ -298,7 +299,7 @@ defmodule HfHub.Collections do
 
   # Private helpers
 
-  defp encode(s), do: URI.encode(s, &URI.char_unreserved?/1)
+  defp encode_repo(s), do: HubPath.encode_repo_id(s)
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

@@ -38,6 +38,7 @@ defmodule HfHub.Spaces do
   """
 
   alias HfHub.{Auth, HTTP}
+  alias HfHub.Path, as: HubPath
   alias HfHub.Repo.RepoUrl
   alias HfHub.Spaces.{SpaceRuntime, SpaceVariable}
 
@@ -77,7 +78,7 @@ defmodule HfHub.Spaces do
   def get_runtime(repo_id, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/spaces/#{encode(repo_id)}/runtime", token: token) do
+    case HTTP.get("/api/spaces/#{encode_repo(repo_id)}/runtime", token: token) do
       {:ok, response} -> {:ok, SpaceRuntime.from_response(response)}
       error -> error
     end
@@ -105,7 +106,7 @@ defmodule HfHub.Spaces do
   def get_variables(repo_id, opts \\ []) do
     token = opts[:token]
 
-    case HTTP.get("/api/spaces/#{encode(repo_id)}/variables", token: token) do
+    case HTTP.get("/api/spaces/#{encode_repo(repo_id)}/variables", token: token) do
       {:ok, response} ->
         vars = for {k, v} <- response, into: %{}, do: {k, SpaceVariable.from_response(k, v)}
         {:ok, vars}
@@ -152,7 +153,7 @@ defmodule HfHub.Spaces do
       }
       |> reject_nil_values()
 
-    HTTP.post_action("/api/spaces/#{encode(repo_id)}/secrets", body, token: token)
+    HTTP.post_action("/api/spaces/#{encode_repo(repo_id)}/secrets", body, token: token)
   end
 
   @doc """
@@ -175,7 +176,7 @@ defmodule HfHub.Spaces do
   @spec delete_secret(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def delete_secret(repo_id, key, opts \\ []) do
     token = opts[:token] || get_token_value()
-    HTTP.delete("/api/spaces/#{encode(repo_id)}/secrets/#{encode(key)}", token: token)
+    HTTP.delete("/api/spaces/#{encode_repo(repo_id)}/secrets/#{encode_seg(key)}", token: token)
   end
 
   # Variables
@@ -214,7 +215,7 @@ defmodule HfHub.Spaces do
       }
       |> reject_nil_values()
 
-    case HTTP.post("/api/spaces/#{encode(repo_id)}/variables", body, token: token) do
+    case HTTP.post("/api/spaces/#{encode_repo(repo_id)}/variables", body, token: token) do
       {:ok, response} -> {:ok, SpaceVariable.from_response(key, response)}
       error -> error
     end
@@ -240,7 +241,7 @@ defmodule HfHub.Spaces do
   @spec delete_variable(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def delete_variable(repo_id, key, opts \\ []) do
     token = opts[:token] || get_token_value()
-    HTTP.delete("/api/spaces/#{encode(repo_id)}/variables/#{encode(key)}", token: token)
+    HTTP.delete("/api/spaces/#{encode_repo(repo_id)}/variables/#{encode_seg(key)}", token: token)
   end
 
   # Hardware
@@ -277,7 +278,7 @@ defmodule HfHub.Spaces do
       }
       |> reject_nil_values()
 
-    case HTTP.post("/api/spaces/#{encode(repo_id)}/hardware", body, token: token) do
+    case HTTP.post("/api/spaces/#{encode_repo(repo_id)}/hardware", body, token: token) do
       {:ok, response} -> {:ok, SpaceRuntime.from_response(response)}
       error -> error
     end
@@ -308,7 +309,7 @@ defmodule HfHub.Spaces do
 
     body = %{"sleepTime" => seconds}
 
-    case HTTP.post("/api/spaces/#{encode(repo_id)}/sleeptime", body, token: token) do
+    case HTTP.post("/api/spaces/#{encode_repo(repo_id)}/sleeptime", body, token: token) do
       {:ok, response} -> {:ok, SpaceRuntime.from_response(response)}
       error -> error
     end
@@ -340,7 +341,7 @@ defmodule HfHub.Spaces do
 
     body = %{"storage" => Atom.to_string(storage)}
 
-    case HTTP.post("/api/spaces/#{encode(repo_id)}/storage", body, token: token) do
+    case HTTP.post("/api/spaces/#{encode_repo(repo_id)}/storage", body, token: token) do
       {:ok, response} -> {:ok, SpaceRuntime.from_response(response)}
       error -> error
     end
@@ -368,7 +369,7 @@ defmodule HfHub.Spaces do
   def delete_storage(repo_id, opts \\ []) do
     token = opts[:token] || get_token_value()
 
-    case HTTP.delete("/api/spaces/#{encode(repo_id)}/storage", token: token) do
+    case HTTP.delete("/api/spaces/#{encode_repo(repo_id)}/storage", token: token) do
       {:ok, response} -> {:ok, SpaceRuntime.from_response(response)}
       :ok -> get_runtime(repo_id, opts)
       error -> error
@@ -399,7 +400,7 @@ defmodule HfHub.Spaces do
   def pause(repo_id, opts \\ []) do
     token = opts[:token] || get_token_value()
 
-    case HTTP.post("/api/spaces/#{encode(repo_id)}/pause", nil, token: token) do
+    case HTTP.post("/api/spaces/#{encode_repo(repo_id)}/pause", nil, token: token) do
       {:ok, response} -> {:ok, SpaceRuntime.from_response(response)}
       error -> error
     end
@@ -429,7 +430,7 @@ defmodule HfHub.Spaces do
 
     body = if opts[:factory_reboot], do: %{"factoryReboot" => true}, else: nil
 
-    case HTTP.post("/api/spaces/#{encode(repo_id)}/restart", body, token: token) do
+    case HTTP.post("/api/spaces/#{encode_repo(repo_id)}/restart", body, token: token) do
       {:ok, response} -> {:ok, SpaceRuntime.from_response(response)}
       error -> error
     end
@@ -474,7 +475,7 @@ defmodule HfHub.Spaces do
       }
       |> reject_nil_values()
 
-    case HTTP.post("/api/spaces/#{encode(from_id)}/duplicate", body, token: token) do
+    case HTTP.post("/api/spaces/#{encode_repo(from_id)}/duplicate", body, token: token) do
       {:ok, response} -> {:ok, RepoUrl.from_response(response, :space)}
       error -> error
     end
@@ -482,7 +483,9 @@ defmodule HfHub.Spaces do
 
   # Helpers
 
-  defp encode(s), do: URI.encode(s, &URI.char_unreserved?/1)
+  defp encode_seg(s), do: HubPath.encode_segment(s)
+
+  defp encode_repo(s), do: HubPath.encode_repo_id(s)
 
   defp reject_nil_values(map) do
     map

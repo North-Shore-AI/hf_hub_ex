@@ -26,7 +26,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/models/org%2Fgated-model/user-access-request/pending",
+        "/api/models/org/gated-model/user-access-request/pending",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -67,7 +67,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/models/org%2Fmodel/user-access-request/pending",
+        "/api/models/org/model/user-access-request/pending",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -91,7 +91,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/models/org%2Fmodel/user-access-request/pending",
+        "/api/models/org/model/user-access-request/pending",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -106,7 +106,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/datasets/org%2Fdataset/user-access-request/pending",
+        "/api/datasets/org/dataset/user-access-request/pending",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -121,7 +121,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/spaces/org%2Fspace/user-access-request/pending",
+        "/api/spaces/org/space/user-access-request/pending",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -136,7 +136,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/models/org%2Fmissing/user-access-request/pending",
+        "/api/models/org/missing/user-access-request/pending",
         fn conn ->
           Plug.Conn.resp(conn, 404, "")
         end
@@ -149,7 +149,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/models/org%2Fmodel/user-access-request/pending",
+        "/api/models/org/model/user-access-request/pending",
         fn conn ->
           Plug.Conn.resp(conn, 401, "")
         end
@@ -164,7 +164,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/models/org%2Fmodel/user-access-request/accepted",
+        "/api/models/org/model/user-access-request/accepted",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -193,7 +193,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "GET",
-        "/api/models/org%2Fmodel/user-access-request/rejected",
+        "/api/models/org/model/user-access-request/rejected",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -221,7 +221,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/user-access-request/handle",
+        "/api/models/org/model/user-access-request/handle",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -241,7 +241,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/user-access-request/handle",
+        "/api/models/org/model/user-access-request/handle",
         fn conn ->
           Plug.Conn.resp(conn, 401, "")
         end
@@ -255,7 +255,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/datasets/org%2Fdataset/user-access-request/handle",
+        "/api/datasets/org/dataset/user-access-request/handle",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
@@ -276,7 +276,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/user-access-request/handle",
+        "/api/models/org/model/user-access-request/handle",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -298,7 +298,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "DELETE",
-        "/api/models/org%2Fmodel/user-access-request/handle",
+        "/api/models/org/model/user-access-request/handle",
         fn conn ->
           assert conn.query_string == "user=revoked_user"
 
@@ -313,7 +313,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "DELETE",
-        "/api/models/org%2Fmodel/user-access-request/handle",
+        "/api/models/org/model/user-access-request/handle",
         fn conn ->
           Plug.Conn.resp(conn, 404, "")
         end
@@ -329,7 +329,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/user-access-request/grant",
+        "/api/models/org/model/user-access-request/grant",
         fn conn ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)
           params = Jason.decode!(body)
@@ -348,7 +348,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/models/org%2Fmodel/user-access-request/grant",
+        "/api/models/org/model/user-access-request/grant",
         fn conn ->
           Plug.Conn.resp(conn, 403, "")
         end
@@ -362,7 +362,7 @@ defmodule HfHub.AccessRequestsTest do
       Bypass.expect_once(
         bypass,
         "POST",
-        "/api/spaces/org%2Fspace/user-access-request/grant",
+        "/api/spaces/org/space/user-access-request/grant",
         fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("application/json")
