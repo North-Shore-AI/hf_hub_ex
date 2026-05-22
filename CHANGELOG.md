@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `HfHub.Download.hf_hub_download/1` now treats pre-existing 0-byte cache
   entries as corrupt and redownloads them, and failed downloads release cache
   locks on every exit path.
+- **Resume streaming wire shape** — `HfHub.HTTP.download_file/3` with
+  `resume: true` now correctly persists the response body for both
+  `206 Partial Content` (server honors `Range`) and `200 OK` (server ignores
+  `Range` and restarts from scratch). Previously, Req's `Collectable` `into:`
+  contract silently skipped streaming for non-200 bodies, so a 206 returned
+  `:ok` with zero bytes appended; combined with the new atomic-rename, that
+  promoted to silent cache corruption. The streaming primitive is now a
+  function-form `into:` lambda that receives chunks for every status code, and
+  truncates the prior partial bytes on the first chunk when the server
+  responds 200 to a Range request.
 - **Preupload preflight** — `HfHub.Commit.create/3` now POSTs each commit's
   add-operations to `/api/{type}s/{repo_id}/preupload/{revision}` to ask the
   Hub which files should ride LFS vs. regular base64. The previous local 10 MB

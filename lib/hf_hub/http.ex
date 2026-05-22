@@ -220,15 +220,47 @@ defmodule HfHub.HTTP do
   @doc """
   Downloads a file from a URL with streaming support.
 
+  ## Atomicity
+
+  Bytes are streamed into `\#{destination}.incomplete` and renamed onto
+  `destination` only on `200`/`206`. Any other status code (`404`, `401`,
+  network failure, etc.) leaves `destination` untouched and removes the
+  `.incomplete` file, so a failed call cannot leave a partial or 0-byte
+  cache entry behind.
+
+  ## Resume semantics (`resume: true`)
+
+  When an `.incomplete` file already exists, its byte length is sent as the
+  `Range: bytes=N-` request header so the server can supply only the
+  remaining bytes. Two server behaviors are handled:
+
+    * **`206 Partial Content`** — server honors `Range`, returns only the
+      tail; the tail is appended to the existing partial.
+    * **`200 OK`** — server ignores `Range` and resends the whole file from
+      offset 0; the existing partial bytes are truncated before the new
+      body is written. This prevents `[stale_prefix ++ fresh_body]`
+      corruption.
+
+  If no `.incomplete` exists but `destination` does, `destination` is copied
+  to `.incomplete` first so that a successful download still produces an
+  atomic rename.
+
+  ## Concurrency
+
+  Direct concurrent calls to `download_file/3` against the same destination
+  race on the same `.incomplete` path. For cache-managed downloads, route
+  through `HfHub.Download.hf_hub_download/1`, which serializes via
+  `HfHub.FS.lock_file/2`.
+
   ## Arguments
 
     * `url` - Full URL to download
     * `destination` - Local file path
-    * `opts` - Download options
 
   ## Options
 
     * `:token` - Authentication token
+    * `:headers` - Additional request headers
     * `:resume` - Resume interrupted download. Defaults to `false`.
     * `:progress_callback` - Function called with download progress.
       The callback receives `(bytes_downloaded, total_bytes)` where
@@ -333,79 +365,111 @@ defmodule HfHub.HTTP do
 
   defp incomplete_path(destination), do: destination <> ".incomplete"
 
-  defp do_req_download(url, headers, file, http_opts, nil) do
-    # No progress callback - use simple streaming
-    stream = IO.binstream(file, :line)
+  defp do_req_download(url, headers, file, http_opts, progress_callback) do
+    # Per-request scratch state lives in the process dictionary because Req's
+    # `into:` lambda has no other channel for first-chunk bookkeeping. Clear
+    # both keys at the start of every call so that one request's state can't
+    # leak into the next download made by the same caller process.
+    Process.delete(:hf_download_progress)
+    Process.delete(:hf_download_first_chunk)
 
-    case Req.get(url,
-           headers: headers,
-           into: stream,
-           receive_timeout: http_opts[:receive_timeout]
-         ) do
-      {:ok, %Req.Response{status: status}} when status in [200, 206] ->
-        :ok
+    range? = range_request?(headers)
+    into_fun = make_into_lambda(file, range?, progress_callback)
 
-      {:ok, %Req.Response{status: 404}} ->
-        {:error, :not_found}
+    result =
+      case Req.get(url,
+             headers: headers,
+             into: into_fun,
+             receive_timeout: http_opts[:receive_timeout]
+           ) do
+        {:ok, %Req.Response{status: status}} when status in [200, 206] ->
+          :ok
 
-      {:ok, %Req.Response{status: 401}} ->
-        {:error, :unauthorized}
+        {:ok, %Req.Response{status: 404}} ->
+          {:error, :not_found}
 
-      {:ok, %Req.Response{status: status}} ->
-        {:error, {:http_error, status}}
+        {:ok, %Req.Response{status: 401}} ->
+          {:error, :unauthorized}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:ok, %Req.Response{status: status}} ->
+          {:error, {:http_error, status}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+
+    Process.delete(:hf_download_progress)
+    Process.delete(:hf_download_first_chunk)
+    result
+  end
+
+  # Build the `into:` lambda used by Req for streaming responses.
+  #
+  # On the first chunk, if we sent a Range header and the server replied 200
+  # (i.e. it ignored Range and is restarting from scratch), we truncate any
+  # previously-written bytes off the file before appending the new body. This
+  # prevents `[stale_partial ++ fresh_body]` corruption on resume against a
+  # server that does not honor Range.
+  #
+  # Each chunk is appended to the file. When a progress_callback is provided,
+  # we additionally track bytes-downloaded and invoke the callback per chunk.
+  defp make_into_lambda(file, range_request?, progress_callback) do
+    fn {:data, chunk}, {_req, resp} = acc ->
+      :ok = maybe_restart_on_first_chunk(file, resp, range_request?)
+      IO.binwrite(file, chunk)
+      maybe_report_progress(resp, chunk, progress_callback)
+      {:cont, acc}
     end
   end
 
-  defp do_req_download(url, headers, file, http_opts, progress_callback) do
-    # With progress callback - use chunked streaming with tracking
-    case Req.get(url,
-           headers: headers,
-           into: fn {:data, chunk}, {_req, resp} = acc ->
-             IO.binwrite(file, chunk)
-             acc_state = get_progress_state(resp)
-             new_downloaded = acc_state.downloaded + byte_size(chunk)
+  defp maybe_restart_on_first_chunk(file, %Req.Response{status: 200}, true) do
+    case Process.get(:hf_download_first_chunk) do
+      nil ->
+        Process.put(:hf_download_first_chunk, :seen)
+        restart_file(file)
 
-             # Call progress callback, catching any errors to not break download
-             try do
-               progress_callback.(new_downloaded, acc_state.total)
-             rescue
-               _ -> :ok
-             catch
-               _, _ -> :ok
-             end
-
-             # Update state in process dictionary for next chunk
-             Process.put(:hf_download_progress, %{
-               downloaded: new_downloaded,
-               total: acc_state.total
-             })
-
-             {:cont, acc}
-           end,
-           receive_timeout: http_opts[:receive_timeout]
-         ) do
-      {:ok, %Req.Response{status: status}} when status in [200, 206] ->
-        Process.delete(:hf_download_progress)
+      _ ->
         :ok
+    end
+  end
 
-      {:ok, %Req.Response{status: 404}} ->
-        Process.delete(:hf_download_progress)
-        {:error, :not_found}
+  defp maybe_restart_on_first_chunk(_file, _resp, _range?) do
+    Process.put(:hf_download_first_chunk, :seen)
+    :ok
+  end
 
-      {:ok, %Req.Response{status: 401}} ->
-        Process.delete(:hf_download_progress)
-        {:error, :unauthorized}
+  defp maybe_report_progress(_resp, _chunk, nil), do: :ok
 
-      {:ok, %Req.Response{status: status}} ->
-        Process.delete(:hf_download_progress)
-        {:error, {:http_error, status}}
+  defp maybe_report_progress(resp, chunk, progress_callback) do
+    acc_state = get_progress_state(resp)
+    new_downloaded = acc_state.downloaded + byte_size(chunk)
 
-      {:error, reason} ->
-        Process.delete(:hf_download_progress)
-        {:error, reason}
+    try do
+      progress_callback.(new_downloaded, acc_state.total)
+    rescue
+      _ -> :ok
+    catch
+      _, _ -> :ok
+    end
+
+    Process.put(:hf_download_progress, %{
+      downloaded: new_downloaded,
+      total: acc_state.total
+    })
+
+    :ok
+  end
+
+  defp range_request?(headers) do
+    Enum.any?(headers, fn
+      {k, _v} -> String.downcase(to_string(k)) == "range"
+      _ -> false
+    end)
+  end
+
+  defp restart_file(file) do
+    with {:ok, _} <- :file.position(file, 0) do
+      :file.truncate(file)
     end
   end
 

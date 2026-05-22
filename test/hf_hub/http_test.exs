@@ -423,5 +423,120 @@ defmodule HfHub.HTTPTest do
       assert File.read!(destination) == "cached content"
       refute File.exists?(destination <> ".incomplete")
     end
+
+    test "resume: true with existing .incomplete appends the 206 body to destination",
+         %{bypass: bypass} do
+      destination =
+        Path.join(System.tmp_dir!(), "resume_206_#{System.unique_integer([:positive])}.bin")
+
+      incomplete = destination <> ".incomplete"
+      File.write!(incomplete, "PARTIAL_")
+
+      on_exit(fn ->
+        File.rm(destination)
+        File.rm(incomplete)
+      end)
+
+      Bypass.expect_once(bypass, "GET", "/file.bin", fn conn ->
+        assert ["bytes=8-"] = Plug.Conn.get_req_header(conn, "range")
+
+        conn
+        |> Plug.Conn.put_resp_header("content-range", "bytes 8-15/16")
+        |> Plug.Conn.resp(206, "DONE!!!!")
+      end)
+
+      url = "http://localhost:#{bypass.port}/file.bin"
+
+      assert :ok = HfHub.HTTP.download_file(url, destination, resume: true)
+      assert File.read!(destination) == "PARTIAL_DONE!!!!"
+      refute File.exists?(incomplete)
+    end
+
+    test "resume: true with existing destination but no .incomplete still resumes from destination bytes",
+         %{bypass: bypass} do
+      destination =
+        Path.join(
+          System.tmp_dir!(),
+          "resume_from_dest_#{System.unique_integer([:positive])}.bin"
+        )
+
+      File.write!(destination, "HEADER__")
+
+      on_exit(fn ->
+        File.rm(destination)
+        File.rm(destination <> ".incomplete")
+      end)
+
+      Bypass.expect_once(bypass, "GET", "/file.bin", fn conn ->
+        assert ["bytes=8-"] = Plug.Conn.get_req_header(conn, "range")
+
+        conn
+        |> Plug.Conn.put_resp_header("content-range", "bytes 8-15/16")
+        |> Plug.Conn.resp(206, "_REST!!!")
+      end)
+
+      url = "http://localhost:#{bypass.port}/file.bin"
+
+      assert :ok = HfHub.HTTP.download_file(url, destination, resume: true)
+      assert File.read!(destination) == "HEADER___REST!!!"
+      refute File.exists?(destination <> ".incomplete")
+    end
+
+    test "resume: true with a server that ignores Range and returns 200 replaces destination with full body",
+         %{bypass: bypass} do
+      destination =
+        Path.join(
+          System.tmp_dir!(),
+          "resume_full_200_#{System.unique_integer([:positive])}.bin"
+        )
+
+      incomplete = destination <> ".incomplete"
+      File.write!(incomplete, "STALE___")
+
+      on_exit(fn ->
+        File.rm(destination)
+        File.rm(incomplete)
+      end)
+
+      Bypass.expect_once(bypass, "GET", "/file.bin", fn conn ->
+        assert ["bytes=8-"] = Plug.Conn.get_req_header(conn, "range")
+        Plug.Conn.resp(conn, 200, "FRESHFULLBODY")
+      end)
+
+      url = "http://localhost:#{bypass.port}/file.bin"
+
+      assert :ok = HfHub.HTTP.download_file(url, destination, resume: true)
+      assert File.read!(destination) == "FRESHFULLBODY"
+      refute File.exists?(incomplete)
+    end
+
+    test "resume: true on 416 leaves an existing destination untouched and clears .incomplete",
+         %{bypass: bypass} do
+      destination =
+        Path.join(
+          System.tmp_dir!(),
+          "resume_416_#{System.unique_integer([:positive])}.bin"
+        )
+
+      File.write!(destination, "ALREADY_COMPLETE")
+      File.write!(destination <> ".incomplete", "ALREADY_COMPLETE")
+
+      on_exit(fn ->
+        File.rm(destination)
+        File.rm(destination <> ".incomplete")
+      end)
+
+      Bypass.expect_once(bypass, "GET", "/file.bin", fn conn ->
+        Plug.Conn.resp(conn, 416, "Range Not Satisfiable")
+      end)
+
+      url = "http://localhost:#{bypass.port}/file.bin"
+
+      assert {:error, {:http_error, 416}} =
+               HfHub.HTTP.download_file(url, destination, resume: true)
+
+      assert File.read!(destination) == "ALREADY_COMPLETE"
+      refute File.exists?(destination <> ".incomplete")
+    end
   end
 end
