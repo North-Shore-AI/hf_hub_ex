@@ -199,6 +199,25 @@ defmodule HfHub.HTTP do
   end
 
   @doc """
+  Sends a POST request whose body is `application/x-ndjson` text.
+
+  Used by `HfHub.Commit.create/3` to talk to the Hub's commit endpoint, which
+  expects a header line followed by one JSON object per operation, each on its
+  own line. See:
+  https://github.com/huggingface/huggingface_hub/issues/1085#issuecomment-1265208073
+
+  ## Options
+
+  All options accepted by `post/3`, plus:
+
+    * `:params` — query-string parameters, e.g. `[create_pr: "1"]`.
+  """
+  @spec post_ndjson(String.t(), iodata(), keyword()) :: {:ok, term()} | {:error, term()}
+  def post_ndjson(path, body, opts \\ []) do
+    raw_request(:post, path, body, "application/x-ndjson", opts)
+  end
+
+  @doc """
   Downloads a file from a URL with streaming support.
 
   ## Arguments
@@ -396,6 +415,30 @@ defmodule HfHub.HTTP do
       :put -> Req.put(url, req_opts)
       :patch -> Req.patch(url, req_opts)
       :delete -> Req.delete(url, req_opts)
+    end
+    |> handle_response()
+  end
+
+  # POST/PUT with a raw (non-JSON-encoded) body and a caller-supplied
+  # content-type. Currently only used for `application/x-ndjson` commit
+  # payloads, but written generically so future media types can reuse it.
+  defp raw_request(method, path, body, content_type, opts) do
+    url = build_url(path)
+    base_headers = build_headers(opts)
+    headers = [{"content-type", content_type} | base_headers]
+    http_opts = Config.http_opts()
+    params = Keyword.get(opts, :params, [])
+
+    req_opts = [
+      body: body,
+      headers: headers,
+      params: params,
+      receive_timeout: http_opts[:receive_timeout],
+      decode_json: [keys: :strings]
+    ]
+
+    case method do
+      :post -> Req.post(url, req_opts)
     end
     |> handle_response()
   end

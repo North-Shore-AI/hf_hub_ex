@@ -5,6 +5,20 @@ defmodule HfHub.CommitTest do
   alias HfHub.Commit
   alias HfHub.Commit.{CommitInfo, Operation}
 
+  defp parse_ndjson(body) do
+    body
+    |> String.split("\n", trim: true)
+    |> Enum.map(&Jason.decode!/1)
+  end
+
+  defp header(items), do: Enum.find(items, &(&1["key"] == "header"))
+  defp ops(items), do: Enum.reject(items, &(&1["key"] == "header"))
+
+  defp assert_ndjson_content_type(conn) do
+    content_type = Plug.Conn.get_req_header(conn, "content-type")
+    assert Enum.any?(content_type, &String.contains?(&1, "application/x-ndjson"))
+  end
+
   setup do
     bypass = Bypass.open()
     original_endpoint = Application.get_env(:hf_hub, :endpoint)
@@ -24,13 +38,15 @@ defmodule HfHub.CommitTest do
   describe "upload_file/4 with regular upload" do
     test "uploads small file successfully", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
+        assert_ndjson_content_type(conn)
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert payload["summary"] == "Upload config.json"
-        assert [operation] = payload["operations"]
-        assert operation["key"] == "config.json"
-        assert operation["value"]["encoding"] == "base64"
+        assert header(items)["value"]["summary"] == "Upload config.json"
+        assert [op] = ops(items)
+        assert op["key"] == "file"
+        assert op["value"]["path"] == "config.json"
+        assert op["value"]["encoding"] == "base64"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -59,10 +75,11 @@ defmodule HfHub.CommitTest do
 
     test "uploads with custom commit message", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
+        assert_ndjson_content_type(conn)
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert payload["summary"] == "Custom message"
+        assert header(items)["value"]["summary"] == "Custom message"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -132,10 +149,11 @@ defmodule HfHub.CommitTest do
 
     test "commits multiple operations", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
+        assert_ndjson_content_type(conn)
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert length(payload["operations"]) == 2
+        assert length(ops(items)) == 2
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -269,10 +287,13 @@ defmodule HfHub.CommitTest do
 
     test "includes createPr flag", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
+        assert_ndjson_content_type(conn)
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert payload["createPr"] == true
+        # createPr travels as a query param, not a body field
+        assert conn.query_string =~ "create_pr=1"
+        assert header(items) != nil
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -307,11 +328,12 @@ defmodule HfHub.CommitTest do
 
     test "includes commit description", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
+        assert_ndjson_content_type(conn)
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert payload["summary"] == "Add file"
-        assert payload["description"] == "This is a longer description"
+        assert header(items)["value"]["summary"] == "Add file"
+        assert header(items)["value"]["description"] == "This is a longer description"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -340,12 +362,13 @@ defmodule HfHub.CommitTest do
   describe "delete_file/3" do
     test "deletes file successfully", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
+        assert_ndjson_content_type(conn)
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert [operation] = payload["operations"]
-        assert operation["key"] == "old_file.bin"
-        assert operation["value"]["delete"]["isFolder"] == false
+        assert [op] = ops(items)
+        assert op["key"] == "deletedFile"
+        assert op["value"]["path"] == "old_file.bin"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -370,10 +393,11 @@ defmodule HfHub.CommitTest do
 
     test "uses custom commit message", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
+        assert_ndjson_content_type(conn)
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert payload["summary"] == "Remove old file"
+        assert header(items)["value"]["summary"] == "Remove old file"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -401,11 +425,12 @@ defmodule HfHub.CommitTest do
   describe "delete_folder/3" do
     test "deletes folder successfully", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
+        assert_ndjson_content_type(conn)
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert [operation] = payload["operations"]
-        assert operation["value"]["delete"]["isFolder"] == true
+        assert [op] = ops(items)
+        assert op["key"] == "deletedFolder"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")

@@ -4,6 +4,18 @@ defmodule HfHub.Commit.FolderUploadTest do
 
   alias HfHub.Commit
 
+  defp parse_ndjson(body) do
+    body
+    |> String.split("\n", trim: true)
+    |> Enum.map(&Jason.decode!/1)
+  end
+
+  defp header(items), do: Enum.find(items, &(&1["key"] == "header"))
+  defp ops(items), do: Enum.reject(items, &(&1["key"] == "header"))
+
+  defp op_paths(items),
+    do: items |> ops() |> Enum.map(& &1["value"]["path"])
+
   setup do
     # Create temp directory with test files
     dir = Path.join(System.tmp_dir!(), "hf_hub_test_#{:rand.uniform(1_000_000)}")
@@ -39,12 +51,12 @@ defmodule HfHub.Commit.FolderUploadTest do
     test "uploads all files in folder (excluding default ignores)", %{dir: dir, bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
         # Should have 3 files (excluding __pycache__)
-        assert length(payload["operations"]) == 3
+        assert length(ops(items)) == 3
 
-        paths = Enum.map(payload["operations"], & &1["key"])
+        paths = op_paths(items)
         assert "config.json" in paths
         assert "model.bin" in paths
         assert "subdir/data.txt" in paths
@@ -69,11 +81,11 @@ defmodule HfHub.Commit.FolderUploadTest do
     test "respects allow_patterns", %{dir: dir, bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
         # Only .json files
-        assert length(payload["operations"]) == 1
-        assert hd(payload["operations"])["key"] == "config.json"
+        assert length(ops(items)) == 1
+        assert hd(ops(items))["value"]["path"] == "config.json"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -98,9 +110,9 @@ defmodule HfHub.Commit.FolderUploadTest do
     test "respects ignore_patterns", %{dir: dir, bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        paths = Enum.map(payload["operations"], & &1["key"])
+        paths = op_paths(items)
         refute Enum.any?(paths, &String.ends_with?(&1, ".bin"))
 
         conn
@@ -126,9 +138,9 @@ defmodule HfHub.Commit.FolderUploadTest do
     test "includes subdirectory files", %{dir: dir, bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        paths = Enum.map(payload["operations"], & &1["key"])
+        paths = op_paths(items)
         assert "subdir/data.txt" in paths
 
         conn
@@ -150,9 +162,9 @@ defmodule HfHub.Commit.FolderUploadTest do
     test "uses custom commit message", %{dir: dir, bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        assert payload["summary"] == "Upload my model"
+        assert header(items)["value"]["summary"] == "Upload my model"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -197,14 +209,15 @@ defmodule HfHub.Commit.FolderUploadTest do
     test "handles delete_patterns for explicit paths", %{dir: dir, bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        payload = Jason.decode!(body)
+        items = parse_ndjson(body)
 
-        # Should include add operations plus delete operation
-        ops = payload["operations"]
-        delete_ops = Enum.filter(ops, &get_in(&1, ["value", "delete"]))
+        # Should include add operations plus delete operations
+        ops_list = ops(items)
+        delete_ops = Enum.filter(ops_list, &(&1["key"] in ["deletedFile", "deletedFolder"]))
 
         assert length(delete_ops) == 1
-        assert hd(delete_ops)["key"] == "old_file.bin"
+        assert hd(delete_ops)["key"] == "deletedFile"
+        assert hd(delete_ops)["value"]["path"] == "old_file.bin"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")

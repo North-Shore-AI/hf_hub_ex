@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-05-21
 
 ### Fixed
+- **Commit payload wire shape** — `HfHub.Commit.create/3` (and therefore
+  `upload_file/4`, `upload_folder/3`, `upload_large_folder/3`, `delete_file/3`,
+  `delete_folder/3`) now sends the canonical
+  `Content-Type: application/x-ndjson` body with one header line followed by
+  one operation per line, matching `_prepare_commit_payload` in
+  `huggingface_hub/_commit_api.py`. Each operation envelope is now
+  `{"key": "file" | "lfsFile" | "deletedFile" | "deletedFolder" | "copy",
+  "value": {"path": <path_in_repo>, ...}}`. The previous JSON-envelope shape
+  silently caused the Hub to accept the request and return a `commitOid`
+  while **discarding every operation**, producing an "empty" commit that left
+  only `.gitattributes` in the repository.
+- `create_pr` is now passed as a `create_pr=1` query parameter rather than as
+  a body field, matching the Python client.
 - Align Git branch/tag/ref routes with Python `huggingface_hub` for namespaced repos:
   - preserve literal `/` in `repo_id` path components;
   - encode branch/tag/revision segments independently;

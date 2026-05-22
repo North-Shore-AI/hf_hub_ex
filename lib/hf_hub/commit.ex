@@ -376,30 +376,50 @@ defmodule HfHub.Commit do
     repo_type = opts[:repo_type] || :model
     revision = opts[:revision] || "main"
 
-    payload = build_commit_payload(operations, opts)
+    ndjson = build_ndjson_payload(operations, opts)
     path = commit_path(repo_id, repo_type, revision)
+    params = if opts[:create_pr], do: [create_pr: "1"], else: []
 
-    HTTP.post(path, payload, token: token)
+    HTTP.post_ndjson(path, ndjson, token: token, params: params)
   end
 
-  defp build_commit_payload(operations, opts) do
-    %{
-      "operations" => Enum.map(operations, &operation_to_payload/1),
-      "summary" => opts[:commit_message],
-      "description" => opts[:commit_description],
-      "createPr" => opts[:create_pr] || false,
-      "parentCommit" => opts[:parent_commit]
-    }
-    |> Enum.reject(fn {_, v} -> is_nil(v) end)
-    |> Map.new()
+  # Builds the canonical HuggingFace commit body: an `application/x-ndjson`
+  # stream whose first line is the header (`summary`, `description`,
+  # `parentCommit`) and each subsequent line is a per-operation envelope:
+  #
+  #     {"key": "file"|"lfsFile"|"deletedFile"|"deletedFolder"|"copy",
+  #      "value": {"path": <path_in_repo>, ...}}
+  #
+  # See `_prepare_commit_payload` in `huggingface_hub/_commit_api.py`.
+  defp build_ndjson_payload(operations, opts) do
+    header = build_header_item(opts)
+    op_items = Enum.map(operations, &operation_to_payload/1)
+
+    [header | op_items]
+    |> Enum.map_join("\n", &Jason.encode!/1)
+    |> Kernel.<>("\n")
+  end
+
+  defp build_header_item(opts) do
+    value =
+      %{
+        "summary" => opts[:commit_message],
+        "description" => opts[:commit_description] || "",
+        "parentCommit" => opts[:parent_commit]
+      }
+      |> Enum.reject(fn {_, v} -> is_nil(v) end)
+      |> Map.new()
+
+    %{"key" => "header", "value" => value}
   end
 
   defp operation_to_payload(%Operation.Add{upload_mode: :regular} = op) do
     {:ok, content} = Operation.base64_content(op)
 
     %{
-      "key" => op.path_in_repo,
+      "key" => "file",
       "value" => %{
+        "path" => op.path_in_repo,
         "content" => content,
         "encoding" => "base64"
       }
@@ -408,42 +428,35 @@ defmodule HfHub.Commit do
 
   defp operation_to_payload(%Operation.Add{upload_mode: :lfs} = op) do
     %{
-      "key" => op.path_in_repo,
+      "key" => "lfsFile",
       "value" => %{
-        "lfs" => %{
-          "oid" => LFS.oid(op.upload_info),
-          "size" => op.upload_info.size
-        }
+        "path" => op.path_in_repo,
+        "algo" => "sha256",
+        "oid" => LFS.oid(op.upload_info),
+        "size" => op.upload_info.size
       }
     }
   end
 
+  defp operation_to_payload(%Operation.Delete{is_folder: true} = op) do
+    %{"key" => "deletedFolder", "value" => %{"path" => op.path_in_repo}}
+  end
+
   defp operation_to_payload(%Operation.Delete{} = op) do
-    %{
-      "key" => op.path_in_repo,
-      "value" => %{
-        "delete" => %{
-          "isFolder" => op.is_folder
-        }
-      }
-    }
+    %{"key" => "deletedFile", "value" => %{"path" => op.path_in_repo}}
   end
 
   defp operation_to_payload(%Operation.Copy{} = op) do
     copy_value =
       %{
-        "src" => op.src_path,
+        "path" => op.dst_path,
+        "srcPath" => op.src_path,
         "srcRevision" => op.src_revision
       }
       |> Enum.reject(fn {_, v} -> is_nil(v) end)
       |> Map.new()
 
-    %{
-      "key" => op.dst_path,
-      "value" => %{
-        "copy" => copy_value
-      }
-    }
+    %{"key" => "copy", "value" => copy_value}
   end
 
   defp commit_path(repo_id, repo_type, revision) do
