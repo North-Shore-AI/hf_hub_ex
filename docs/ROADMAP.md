@@ -193,6 +193,16 @@ For context on how `hf_hub_ex` fits into the broader ecosystem:
 4. **tokenizers NIF** - Rust bindings for fast tokenization
 5. **safetensors NIF** - Rust bindings for tensor loading
 
+
+## TODO
+
+## 2026-05-21
+- Concurrent direct callers to HTTP.download_file/3 against the same destination still race on the .incomplete path; docstring now flags
+  this. Not a regression from this fix.
+- Per-attempt .incomplete.<random> suffix (matching Python huggingface_hub's pattern) is a future hardening, not needed for the current
+  bug surface.
+
+
 ---
 
 ## API Compatibility Notes
