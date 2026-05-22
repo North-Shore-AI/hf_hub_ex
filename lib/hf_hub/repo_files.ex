@@ -71,21 +71,20 @@ defmodule HfHub.RepoFiles do
          {:ok, data} <- decode_json(path) do
       repo_files =
         for entry <- data, entry["type"] == "file", into: %{} do
-          path = entry["path"]
-
-          name =
-            if subdir do
-              String.replace_leading(path, subdir <> "/", "")
-            else
-              path
-            end
-
-          etag_content = get_in(entry, ["lfs", "oid"]) || entry["oid"]
-          etag = if etag_content, do: <<?", etag_content::binary, ?">>, else: nil
-          {name, etag}
+          {repo_file_name(entry["path"], subdir), repo_file_etag(entry)}
         end
 
       {:ok, repo_files}
+    end
+  end
+
+  defp repo_file_name(path, nil), do: path
+  defp repo_file_name(path, subdir), do: String.replace_leading(path, subdir <> "/", "")
+
+  defp repo_file_etag(entry) do
+    case get_in(entry, ["lfs", "oid"]) || entry["oid"] do
+      nil -> nil
+      etag_content -> <<?", etag_content::binary, ?">>
     end
   end
 

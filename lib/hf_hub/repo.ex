@@ -27,6 +27,7 @@ defmodule HfHub.Repo do
   """
 
   alias HfHub.{Auth, Config, HTTP}
+  alias HfHub.Path, as: HubPath
   alias HfHub.Repo.RepoUrl
 
   @type repo_type :: :model | :dataset | :space
@@ -95,10 +96,16 @@ defmodule HfHub.Repo do
   def delete(repo_id, opts \\ []) do
     token = opts[:token] || Auth.get_token()
     repo_type = opts[:repo_type] || :model
-    prefix = repo_type_plural_prefix(repo_type)
     missing_ok = Keyword.get(opts, :missing_ok, false)
+    {name, organization} = parse_repo_id(repo_id)
 
-    case HTTP.delete("/api/repos/#{create_delete_path(prefix, repo_id)}", token: token) do
+    body = %{
+      name: name,
+      organization: organization,
+      type: repo_type_to_string(repo_type)
+    }
+
+    case HTTP.delete("/api/repos/delete", body, token: token) do
       :ok ->
         :ok
 
@@ -112,8 +119,6 @@ defmodule HfHub.Repo do
         error
     end
   end
-
-  defp create_delete_path(prefix, repo_id), do: "#{prefix}/#{encode_repo_id(repo_id)}"
 
   @doc """
   Updates repository settings.
@@ -267,7 +272,7 @@ defmodule HfHub.Repo do
     repo_type = opts[:repo_type] || :model
     prefix = repo_type_plural_prefix(repo_type)
 
-    path = "/api/#{prefix}/#{encode_repo_id(repo_id)}/revision/#{URI.encode(revision)}"
+    path = "/api/#{prefix}/#{encode_repo_id(repo_id)}/revision/#{HubPath.encode_segment(revision)}"
 
     case HTTP.get(path, token: token) do
       {:ok, _} -> true
@@ -315,16 +320,7 @@ defmodule HfHub.Repo do
   defp repo_type_url_prefix(:dataset), do: "datasets"
   defp repo_type_url_prefix(:space), do: "spaces"
 
-  defp encode_repo_id(repo_id) do
-    # Repository IDs can contain slashes (org/name)
-    # The API expects them as org/name in the path usually, but some endpoints might want encoded slashes.
-    # However, standard practice for HF API in path params:
-    # /api/models/org/name -> works
-    # /api/models/org%2Fname -> also works and is safer
-
-    # Python code uses `quote(repo_id, safe="")` implies full encoding.
-    URI.encode(repo_id, &URI.char_unreserved?/1)
-  end
+  defp encode_repo_id(repo_id), do: HubPath.encode_repo_id(repo_id)
 
   defp build_public_path(repo_id, :model), do: "/#{repo_id}"
   defp build_public_path(repo_id, :dataset), do: "/datasets/#{repo_id}"

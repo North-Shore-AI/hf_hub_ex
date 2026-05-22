@@ -53,6 +53,9 @@ defmodule HfHub.MixProject do
       # Optional: DataFrame support for dataset loading
       {:explorer, "~> 0.10", optional: true},
 
+      # Test support (also silences ExCoveralls' optional CAStore warning)
+      {:castore, "~> 1.0", only: :test},
+
       # Development and testing
       {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
@@ -70,7 +73,7 @@ defmodule HfHub.MixProject do
         "GitHub" => @source_url,
         "HuggingFace" => "https://huggingface.co"
       },
-      files: ~w(lib assets mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib assets guides docs mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
@@ -81,7 +84,8 @@ defmodule HfHub.MixProject do
       source_url: @source_url,
       assets: %{"assets" => "assets"},
       logo: "assets/hf_hub_ex.svg",
-      extras: ["README.md", "CHANGELOG.md", "LICENSE", "docs/ROADMAP.md"],
+      extras:
+        ["README.md", "CHANGELOG.md", "LICENSE", "docs/ROADMAP.md"] ++ Path.wildcard("guides/*.md"),
       groups_for_modules: [
         "Core API": [
           HfHub.Api,
@@ -100,7 +104,7 @@ defmodule HfHub.MixProject do
         ]
       ],
       groups_for_extras: [
-        Documentation: ["README.md", "docs/ROADMAP.md"],
+        Documentation: ["README.md", "docs/ROADMAP.md"] ++ Path.wildcard("guides/*.md"),
         Changelog: ["CHANGELOG.md"],
         License: ["LICENSE"]
       ]

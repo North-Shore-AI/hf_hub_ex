@@ -24,6 +24,7 @@ defmodule HfHub.Git do
 
   alias HfHub.{Auth, HTTP}
   alias HfHub.Git.{BranchInfo, CommitInfo, GitRefs, TagInfo}
+  alias HfHub.Path, as: HubPath
 
   @type repo_type :: :model | :dataset | :space
 
@@ -50,15 +51,18 @@ defmodule HfHub.Git do
   def create_branch(repo_id, branch, opts \\ []) do
     token = opts[:token] || Auth.get_token()
     repo_type = opts[:repo_type] || :model
-    revision = opts[:revision] || "main"
+    revision = opts[:revision]
     exist_ok = Keyword.get(opts, :exist_ok, false)
 
-    body = %{"startingPoint" => revision}
+    body = if revision, do: %{"startingPoint" => revision}, else: %{}
     path = branch_path(repo_id, repo_type, branch)
 
     case HTTP.post(path, body, token: token) do
-      {:ok, response} ->
-        {:ok, BranchInfo.from_response(response)}
+      {:ok, response} when is_map(response) ->
+        {:ok, branch_info(response, branch)}
+
+      {:ok, _response} ->
+        {:ok, %BranchInfo{name: branch}}
 
       {:error, {:conflict, _}} when exist_ok ->
         {:ok, %BranchInfo{name: branch}}
@@ -122,14 +126,17 @@ defmodule HfHub.Git do
     exist_ok = Keyword.get(opts, :exist_ok, false)
 
     body =
-      %{"ref" => "refs/heads/#{revision}"}
+      %{"tag" => tag}
       |> maybe_add_message(opts[:message])
 
-    path = tag_path(repo_id, repo_type, tag)
+    path = tag_path(repo_id, repo_type, revision)
 
     case HTTP.post(path, body, token: token) do
-      {:ok, response} ->
-        {:ok, TagInfo.from_response(response)}
+      {:ok, response} when is_map(response) ->
+        {:ok, tag_info(response, tag)}
+
+      {:ok, _response} ->
+        {:ok, %TagInfo{name: tag}}
 
       {:error, {:conflict, _}} when exist_ok ->
         {:ok, %TagInfo{name: tag}}
@@ -189,7 +196,7 @@ defmodule HfHub.Git do
     include_prs = Keyword.get(opts, :include_pull_requests, false)
 
     path = refs_path(repo_id, repo_type)
-    params = if include_prs, do: [include_pull_requests: "true"], else: []
+    params = if include_prs, do: [include_prs: 1], else: []
 
     case HTTP.get(path, token: token, params: params) do
       {:ok, response} -> {:ok, GitRefs.from_response(response)}
@@ -260,41 +267,50 @@ defmodule HfHub.Git do
     token = opts[:token] || Auth.get_token()
     repo_type = opts[:repo_type] || :model
 
-    body =
-      %{"branch" => opts[:branch] || "main"}
-      |> maybe_add_message(opts[:message])
+    branch = opts[:branch] || "main"
+    message = opts[:message] || "Super-squash branch '#{branch}' using hf_hub_ex"
 
-    path = squash_path(repo_id, repo_type)
-    HTTP.post_action(path, body, token: token)
+    path = squash_path(repo_id, repo_type, branch)
+    HTTP.post_action(path, %{"message" => message}, token: token)
   end
 
   # Path helpers
 
   defp branch_path(repo_id, repo_type, branch) do
-    "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/branch/#{encode(branch)}"
+    "/api/#{type_prefix(repo_type)}/#{HubPath.encode_repo_id(repo_id)}/branch/#{HubPath.encode_segment(branch)}"
   end
 
-  defp tag_path(repo_id, repo_type, tag) do
-    "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/tag/#{encode(tag)}"
+  defp tag_path(repo_id, repo_type, revision) do
+    "/api/#{type_prefix(repo_type)}/#{HubPath.encode_repo_id(repo_id)}/tag/#{HubPath.encode_segment(revision)}"
   end
 
   defp refs_path(repo_id, repo_type) do
-    "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/refs"
+    "/api/#{type_prefix(repo_type)}/#{HubPath.encode_repo_id(repo_id)}/refs"
   end
 
   defp commits_path(repo_id, repo_type, revision) do
-    "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/commits/#{encode(revision)}"
+    "/api/#{type_prefix(repo_type)}/#{HubPath.encode_repo_id(repo_id)}/commits/#{HubPath.encode_segment(revision)}"
   end
 
-  defp squash_path(repo_id, repo_type) do
-    "/api/#{type_prefix(repo_type)}/#{encode(repo_id)}/super-squash"
+  defp squash_path(repo_id, repo_type, branch) do
+    "/api/#{type_prefix(repo_type)}/#{HubPath.encode_repo_id(repo_id)}/super-squash/#{HubPath.encode_segment(branch)}"
   end
 
   defp type_prefix(:model), do: "models"
   defp type_prefix(:dataset), do: "datasets"
   defp type_prefix(:space), do: "spaces"
 
-  defp encode(s), do: URI.encode(s, &URI.char_unreserved?/1)
+  defp branch_info(response, branch) do
+    response
+    |> Map.put_new("name", branch)
+    |> BranchInfo.from_response()
+  end
+
+  defp tag_info(response, tag) do
+    response
+    |> Map.put_new("name", tag)
+    |> TagInfo.from_response()
+  end
 
   defp maybe_add_message(body, nil), do: body
   defp maybe_add_message(body, message), do: Map.put(body, "message", message)

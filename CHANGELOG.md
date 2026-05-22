@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-05-21
 
 ### Fixed
+- Align Git branch/tag/ref routes with Python `huggingface_hub` for namespaced repos:
+  - preserve literal `/` in `repo_id` path components;
+  - encode branch/tag/revision segments independently;
+  - `create_tag/3` now posts to `/tag/{revision}` with `%{"tag" => tag}`;
+  - `list_refs/2` now uses `include_prs=1` for PR refs;
+  - `super_squash/2` now posts to `/super-squash/{branch}` with a message body.
+- Align repository-management routes used by the artifact-publishing flow:
+  - `update_settings/2` and `revision_exists?/3` preserve literal repo slashes;
+  - `delete/2` now uses Python-compatible `DELETE /api/repos/delete` with JSON body.
 - **LFS multipart upload protocol** (the `Cannot PUT /api/complete_multipart` bug):
   - Multipart detection now reads the `chunk_size` header (case-insensitive)
     instead of the wrong `x-amz-meta-chunk-size` key. Previously, files that
@@ -37,9 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fixed library code.)
 
 ### Added
+- Add an internal path helper with regression tests for repo-id and path-segment encoding.
+- Add user-facing guides for runtime auth config, uploads/LFS, and Git refs/tags; package them in Hex/HexDocs.
 - Add configurable timeouts for LFS uploads
 
 ### Changed
+- Refresh all resolvable Hex dependencies to current latest versions; `decimal` and `ranch` remain constrained by upstream dependency requirements.
+- Rewrite README around the artifact-publishing workflow while preserving badges and SVG logo.
 - Decouple library from OS environment variables
 
 ## [0.2.0] - 2026-01-25

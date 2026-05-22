@@ -22,10 +22,10 @@ defmodule HfHub.GitTest do
 
   describe "create_branch/3" do
     test "creates a branch from main", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/org%2Fmodel/branch/feature", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/org/model/branch/feature", fn conn ->
         {:ok, body, _conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
-        assert params["startingPoint"] == "main"
+        refute Map.has_key?(params, "startingPoint")
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -61,7 +61,7 @@ defmodule HfHub.GitTest do
     end
 
     test "creates branch for dataset", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/datasets/org%2Fds/branch/dev", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/datasets/org/ds/branch/dev", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, Jason.encode!(%{"name" => "dev"}))
@@ -93,7 +93,7 @@ defmodule HfHub.GitTest do
 
   describe "delete_branch/3" do
     test "deletes existing branch", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/models/org%2Fmodel/branch/old", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/models/org/model/branch/old", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, "{}")
@@ -123,10 +123,10 @@ defmodule HfHub.GitTest do
 
   describe "create_tag/3" do
     test "creates lightweight tag", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/model/tag/v1.0", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/model/tag/main", fn conn ->
         {:ok, body, _conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
-        assert params["ref"] == "refs/heads/main"
+        assert params["tag"] == "v1.0"
         refute Map.has_key?(params, "message")
 
         conn
@@ -147,10 +147,10 @@ defmodule HfHub.GitTest do
     end
 
     test "creates annotated tag with message", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/model/tag/v2.0", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/model/tag/abc123", fn conn ->
         {:ok, body, _conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
-        assert params["ref"] == "refs/heads/abc123"
+        assert params["tag"] == "v2.0"
         assert params["message"] == "Release v2.0"
 
         conn
@@ -170,7 +170,7 @@ defmodule HfHub.GitTest do
     end
 
     test "creates tag for space", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/org%2Fspace/tag/v1", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/org/space/tag/main", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, Jason.encode!(%{"name" => "v1"}))
@@ -180,8 +180,40 @@ defmodule HfHub.GitTest do
       assert info.name == "v1"
     end
 
+    test "creates dataset tag for namespaced repo without URL-encoding repo slash", %{
+      bypass: bypass
+    } do
+      repo_id = "nshkrdotcom/trinity-coordinator-adapted-qwen3-0.6b"
+
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/datasets/#{repo_id}/tag/main",
+        fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          payload = Jason.decode!(body)
+
+          assert payload["tag"] == "v1.0.0"
+          assert payload["message"] == "Initial public release"
+
+          conn
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.resp(200, Jason.encode!(%{"name" => "v1.0.0"}))
+        end
+      )
+
+      assert {:ok, info} =
+               Git.create_tag(repo_id, "v1.0.0",
+                 repo_type: :dataset,
+                 message: "Initial public release",
+                 token: "token"
+               )
+
+      assert info.name == "v1.0.0"
+    end
+
     test "returns existing tag with exist_ok: true", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/model/tag/existing", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/model/tag/main", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(409, Jason.encode!(%{"error" => "Tag already exists"}))
@@ -189,6 +221,26 @@ defmodule HfHub.GitTest do
 
       assert {:ok, info} = Git.create_tag("model", "existing", exist_ok: true, token: "token")
       assert info.name == "existing"
+    end
+
+    test "returns tag info when Hub responds with an empty success body", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/models/model/tag/main", fn conn ->
+        Plug.Conn.resp(conn, 200, "")
+      end)
+
+      assert {:ok, info} = Git.create_tag("model", "v-empty", token: "token")
+      assert info.name == "v-empty"
+    end
+
+    test "returns tag info when Hub responds with an empty JSON object", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/api/models/model/tag/main", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{}))
+      end)
+
+      assert {:ok, info} = Git.create_tag("model", "v-empty-map", token: "token")
+      assert info.name == "v-empty-map"
     end
   end
 
@@ -242,7 +294,7 @@ defmodule HfHub.GitTest do
 
     test "lists refs with pull requests", %{bypass: bypass} do
       Bypass.expect_once(bypass, "GET", "/api/models/model/refs", fn conn ->
-        assert conn.query_string =~ "include_pull_requests"
+        assert conn.query_string == "include_prs=1"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -373,10 +425,10 @@ defmodule HfHub.GitTest do
 
   describe "super_squash/2" do
     test "squashes repository history", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/model/super-squash", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/model/super-squash/main", fn conn ->
         {:ok, body, _conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
-        assert params["branch"] == "main"
+        assert params["message"] == "Super-squash branch 'main' using hf_hub_ex"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -387,7 +439,7 @@ defmodule HfHub.GitTest do
     end
 
     test "squashes with custom message", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/model/super-squash", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/model/super-squash/main", fn conn ->
         {:ok, body, _conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
         assert params["message"] == "Squashed history"
@@ -401,10 +453,10 @@ defmodule HfHub.GitTest do
     end
 
     test "squashes specific branch", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/model/super-squash", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/model/super-squash/dev", fn conn ->
         {:ok, body, _conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
-        assert params["branch"] == "dev"
+        assert params["message"] == "Super-squash branch 'dev' using hf_hub_ex"
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -415,7 +467,7 @@ defmodule HfHub.GitTest do
     end
 
     test "returns error without write permission", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/model/super-squash", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/model/super-squash/main", fn conn ->
         Plug.Conn.resp(conn, 403, "")
       end)
 
@@ -423,7 +475,7 @@ defmodule HfHub.GitTest do
     end
 
     test "squashes dataset", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/datasets/ds/super-squash", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/datasets/ds/super-squash/main", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(200, "{}")

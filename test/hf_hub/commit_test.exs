@@ -237,6 +237,36 @@ defmodule HfHub.CommitTest do
         )
     end
 
+    test "encodes revision path segment while preserving repo slash", %{bypass: bypass} do
+      Bypass.expect_once(
+        bypass,
+        "POST",
+        "/api/models/user/repo/commit/feature%2Fupload%20%231",
+        fn conn ->
+          conn
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.resp(
+            200,
+            Jason.encode!(%{
+              "commitUrl" => "url",
+              "commitOid" => "abc",
+              "commitMessage" => "msg",
+              "repoUrl" => "url"
+            })
+          )
+        end
+      )
+
+      {:ok, _} =
+        Commit.create(
+          "user/repo",
+          [Operation.add("file.txt", "content")],
+          token: "hf_test",
+          commit_message: "Add file",
+          revision: "feature/upload #1"
+        )
+    end
+
     test "includes createPr flag", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)

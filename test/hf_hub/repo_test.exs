@@ -120,7 +120,13 @@ defmodule HfHub.RepoTest do
 
   describe "delete/2" do
     test "deletes existing repository", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/repos/models/org%2Frepo", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/repos/delete", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        payload = Jason.decode!(body)
+        assert payload["name"] == "repo"
+        assert payload["organization"] == "org"
+        assert payload["type"] == "model"
+
         Plug.Conn.resp(conn, 200, "{}")
         |> Plug.Conn.put_resp_content_type("application/json")
       end)
@@ -129,7 +135,13 @@ defmodule HfHub.RepoTest do
     end
 
     test "deletes existing dataset", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/repos/datasets/org%2Fds", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/repos/delete", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        payload = Jason.decode!(body)
+        assert payload["name"] == "ds"
+        assert payload["organization"] == "org"
+        assert payload["type"] == "dataset"
+
         Plug.Conn.resp(conn, 200, "{}")
         |> Plug.Conn.put_resp_content_type("application/json")
       end)
@@ -138,7 +150,13 @@ defmodule HfHub.RepoTest do
     end
 
     test "returns :ok with missing_ok when not found", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "DELETE", "/api/repos/models/org%2Fmissing", fn conn ->
+      Bypass.expect_once(bypass, "DELETE", "/api/repos/delete", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        payload = Jason.decode!(body)
+        assert payload["name"] == "missing"
+        assert payload["organization"] == "org"
+        assert payload["type"] == "model"
+
         Plug.Conn.resp(conn, 404, "")
       end)
 
@@ -148,7 +166,7 @@ defmodule HfHub.RepoTest do
 
   describe "update_settings/2" do
     test "updates visibility", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "PUT", "/api/models/org%2Frepo/settings", fn conn ->
+      Bypass.expect_once(bypass, "PUT", "/api/models/org/repo/settings", fn conn ->
         {:ok, body, _conn} = Plug.Conn.read_body(conn)
         params = Jason.decode!(body)
         assert params["private"] == true
@@ -222,7 +240,7 @@ defmodule HfHub.RepoTest do
 
   describe "revision_exists?/3" do
     test "returns true for existing revision", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Frepo/revision/main", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/repo/revision/main", fn conn ->
         Plug.Conn.resp(conn, 200, "{}")
         |> Plug.Conn.put_resp_content_type("application/json")
       end)
@@ -231,7 +249,7 @@ defmodule HfHub.RepoTest do
     end
 
     test "returns false for missing revision", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/org%2Frepo/revision/missing", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/api/models/org/repo/revision/missing", fn conn ->
         Plug.Conn.resp(conn, 404, "{}")
       end)
 

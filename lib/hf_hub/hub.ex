@@ -167,20 +167,9 @@ defmodule HfHub.Hub do
   defp head_download(url, headers) do
     case HTTP.head(url, headers: headers, follow_redirects: false) do
       {:ok, %{status: status} = response} when status in 300..399 ->
-        location = get_header(response, "location")
-
-        if URI.parse(location).host == nil do
-          # Follow relative redirects
-          url =
-            url
-            |> URI.parse()
-            |> Map.replace!(:path, location)
-            |> URI.to_string()
-
-          head_download(url, headers)
-        else
-          with {:ok, etag} <- fetch_etag(response), do: {:ok, etag, location, true}
-        end
+        response
+        |> get_header("location")
+        |> handle_head_redirect(url, headers, response)
 
       {:ok, %{status: status} = response} when status in 100..399 ->
         with {:ok, etag} <- fetch_etag(response), do: {:ok, etag, url, false}
@@ -224,6 +213,25 @@ defmodule HfHub.Hub do
       nil -> {:error, "no ETag found on the resource"}
       value -> {:ok, value}
     end
+  end
+
+  defp handle_head_redirect(location, url, headers, response) do
+    case URI.parse(location).host do
+      nil ->
+        url
+        |> replace_uri_path(location)
+        |> head_download(headers)
+
+      _host ->
+        with {:ok, etag} <- fetch_etag(response), do: {:ok, etag, location, true}
+    end
+  end
+
+  defp replace_uri_path(url, location) do
+    url
+    |> URI.parse()
+    |> Map.replace!(:path, location)
+    |> URI.to_string()
   end
 
   defp get_header(%{headers: headers}, key) do

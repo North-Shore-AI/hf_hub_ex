@@ -144,7 +144,7 @@ defmodule HfHub.HTTP do
 
       {:ok, response} = HfHub.HTTP.post("/api/endpoint", %{data: "value"})
   """
-  @spec post(String.t(), map() | nil, keyword()) :: {:ok, map()} | {:error, term()}
+  @spec post(String.t(), map() | nil, keyword()) :: {:ok, term()} | {:error, term()}
   def post(path, body \\ nil, opts \\ []) do
     request(:post, path, body, opts)
   end
@@ -152,7 +152,7 @@ defmodule HfHub.HTTP do
   @doc """
   Performs a PUT request with JSON body.
   """
-  @spec put(String.t(), map() | nil, keyword()) :: {:ok, map()} | {:error, term()}
+  @spec put(String.t(), map() | nil, keyword()) :: {:ok, term()} | {:error, term()}
   def put(path, body \\ nil, opts \\ []) do
     request(:put, path, body, opts)
   end
@@ -160,7 +160,7 @@ defmodule HfHub.HTTP do
   @doc """
   Performs a PATCH request with JSON body.
   """
-  @spec patch(String.t(), map() | nil, keyword()) :: {:ok, map()} | {:error, term()}
+  @spec patch(String.t(), map() | nil, keyword()) :: {:ok, term()} | {:error, term()}
   def patch(path, body \\ nil, opts \\ []) do
     request(:patch, path, body, opts)
   end
@@ -170,9 +170,19 @@ defmodule HfHub.HTTP do
 
   DELETE requests typically don't have a body but may return data.
   """
-  @spec delete(String.t(), keyword()) :: :ok | {:ok, map()} | {:error, term()}
+  @spec delete(String.t(), keyword()) :: :ok | {:ok, term()} | {:error, term()}
   def delete(path, opts \\ []) do
     request(:delete, path, nil, opts)
+  end
+
+  @doc """
+  Performs a DELETE request with a JSON body.
+
+  The Hugging Face repo-deletion endpoint follows this shape.
+  """
+  @spec delete(String.t(), map() | nil, keyword()) :: :ok | {:ok, term()} | {:error, term()}
+  def delete(path, body, opts) do
+    request(:delete, path, body, opts)
   end
 
   @doc """
