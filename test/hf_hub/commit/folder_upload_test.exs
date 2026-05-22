@@ -37,7 +37,7 @@ defmodule HfHub.Commit.FolderUploadTest do
 
   describe "upload_folder/3" do
     test "uploads all files in folder (excluding default ignores)", %{dir: dir, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -67,7 +67,7 @@ defmodule HfHub.Commit.FolderUploadTest do
     end
 
     test "respects allow_patterns", %{dir: dir, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -96,7 +96,7 @@ defmodule HfHub.Commit.FolderUploadTest do
     end
 
     test "respects ignore_patterns", %{dir: dir, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -124,7 +124,7 @@ defmodule HfHub.Commit.FolderUploadTest do
     end
 
     test "includes subdirectory files", %{dir: dir, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -148,7 +148,7 @@ defmodule HfHub.Commit.FolderUploadTest do
     end
 
     test "uses custom commit message", %{dir: dir, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -195,7 +195,7 @@ defmodule HfHub.Commit.FolderUploadTest do
     end
 
     test "handles delete_patterns for explicit paths", %{dir: dir, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -229,7 +229,7 @@ defmodule HfHub.Commit.FolderUploadTest do
 
   describe "upload_large_folder/3" do
     test "returns single commit when multi_commits is false", %{dir: dir, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -253,7 +253,7 @@ defmodule HfHub.Commit.FolderUploadTest do
     end
 
     test "delegates to upload_folder when multi_commits is false", %{dir: dir, bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(

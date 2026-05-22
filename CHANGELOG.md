@@ -5,16 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.1] - 2026-05-21
+## [0.3.0] - 2026-05-21
+
+### Fixed
+- **LFS multipart upload protocol** (the `Cannot PUT /api/complete_multipart` bug):
+  - Multipart detection now reads the `chunk_size` header (case-insensitive)
+    instead of the wrong `x-amz-meta-chunk-size` key. Previously, files that
+    HF wanted uploaded in parts fell through to single-part `PUT` against
+    the completion endpoint and returned 404.
+  - Part URL parsing now uses digit-only string keys (`"1"`, `"00001"`, ...)
+    instead of the wrong `x-amz-meta-part-N-url` pattern.
+  - Completion payload now includes the required top-level `"oid"` field
+    alongside `"parts"`, matching `huggingface_hub/lfs.py` exactly.
+  - Completion request now sends the LFS `Accept: application/vnd.git-lfs+json`
+    and `Content-Type: application/vnd.git-lfs+json` headers.
+  - Malformed `chunk_size` server responses now surface as
+    `{:error, {:malformed_response, message}}` instead of crashing the
+    caller process via a linked task EXIT.
+  - Part-count mismatches surface as
+    `{:error, {:multipart_upload_failed, {:part_count_mismatch, ...}}}`.
+- The internal LFS header reader in `HfHub.Commit.LfsUpload` now correctly reads ETags from the
+  `Req` >= 0.4 response-headers map (was always returning `nil`, which made
+  multipart completion latently impossible even before the protocol fix).
+- Prevent URL-encoded slashes in repository IDs
+
+### Internal
+- Test fixtures across `commit_test.exs`, `commit/folder_upload_test.exs`, and
+  `commit/lfs_upload_test.exs` now expect literal `/` between org and repo
+  name, matching the corrected URL encoding shipped in `0.2.1`. (Previously
+  these 26 fixtures hard-coded the broken `%2F` form and failed against the
+  fixed library code.)
 
 ### Added
 - Add configurable timeouts for LFS uploads
 
 ### Changed
 - Decouple library from OS environment variables
-
-### Fixed
-- Prevent URL-encoded slashes in repository IDs
 
 ## [0.2.0] - 2026-01-25
 

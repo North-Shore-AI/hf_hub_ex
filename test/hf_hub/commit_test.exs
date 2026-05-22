@@ -23,7 +23,7 @@ defmodule HfHub.CommitTest do
 
   describe "upload_file/4 with regular upload" do
     test "uploads small file successfully", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -58,7 +58,7 @@ defmodule HfHub.CommitTest do
     end
 
     test "uploads with custom commit message", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -131,7 +131,7 @@ defmodule HfHub.CommitTest do
     end
 
     test "commits multiple operations", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -163,7 +163,7 @@ defmodule HfHub.CommitTest do
     end
 
     test "uses correct path for datasets", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/datasets/user%2Fdataset/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/datasets/user/dataset/commit/main", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -188,7 +188,7 @@ defmodule HfHub.CommitTest do
     end
 
     test "uses correct path for spaces", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/spaces/user%2Fspace/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/spaces/user/space/commit/main", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -213,7 +213,7 @@ defmodule HfHub.CommitTest do
     end
 
     test "uses custom revision", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/dev", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/dev", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
@@ -238,7 +238,7 @@ defmodule HfHub.CommitTest do
     end
 
     test "includes createPr flag", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -276,7 +276,7 @@ defmodule HfHub.CommitTest do
     end
 
     test "includes commit description", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -309,7 +309,7 @@ defmodule HfHub.CommitTest do
 
   describe "delete_file/3" do
     test "deletes file successfully", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -339,7 +339,7 @@ defmodule HfHub.CommitTest do
     end
 
     test "uses custom commit message", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
@@ -370,7 +370,7 @@ defmodule HfHub.CommitTest do
 
   describe "delete_folder/3" do
     test "deletes folder successfully", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/api/models/user%2Frepo/commit/main", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/api/models/user/repo/commit/main", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 

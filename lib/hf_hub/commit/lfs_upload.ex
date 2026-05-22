@@ -86,24 +86,18 @@ defmodule HfHub.Commit.LfsUpload do
         {LFS.oid(op.upload_info), op}
       end)
 
-    # Upload each object that has an upload action (concurrently)
+    # Upload each object that has an upload action (concurrently).
+    #
+    # The worker function is wrapped in `try/rescue/catch` so a malformed
+    # server response (e.g. non-integer `chunk_size`) becomes an
+    # `{:error, {:malformed_response, ...}}` tuple instead of a linked EXIT
+    # that would crash the caller process. Genuine task timeouts and other
+    # `:exit` payloads still surface as `{:error, {:upload_crashed, ...}}`.
     results =
       objects
       |> Task.async_stream(
         fn obj ->
-          oid = obj["oid"]
-          actions = obj["actions"] || %{}
-
-          case Map.get(actions, "upload") do
-            nil ->
-              # Already exists, no upload needed
-              :ok
-
-            upload_action ->
-              op = Map.fetch!(ops_by_oid, oid)
-              verify_action = Map.get(actions, "verify")
-              upload_single(op, upload_action, verify_action, token, opts)
-          end
+          run_one_upload(obj, ops_by_oid, token, opts)
         end,
         max_concurrency: max_workers,
         timeout: lfs_task_timeout(opts)
@@ -119,28 +113,97 @@ defmodule HfHub.Commit.LfsUpload do
     end
   end
 
+  # Drains one batch object into a tagged result, never raising.
+  defp run_one_upload(obj, ops_by_oid, token, opts) do
+    oid = obj["oid"]
+    actions = obj["actions"] || %{}
+
+    case Map.get(actions, "upload") do
+      nil ->
+        :ok
+
+      upload_action ->
+        op = Map.fetch!(ops_by_oid, oid)
+        verify_action = Map.get(actions, "verify")
+
+        try do
+          upload_single(op, upload_action, verify_action, token, opts)
+        rescue
+          e in ArgumentError ->
+            {:error, {:malformed_response, Exception.message(e)}}
+
+          e ->
+            {:error, {:upload_exception, Exception.message(e), __STACKTRACE__}}
+        catch
+          kind, reason ->
+            {:error, {:upload_exception, {kind, reason}, __STACKTRACE__}}
+        end
+    end
+  end
+
   # Uploads a single LFS object
   defp upload_single(operation, upload_action, verify_action, _token, opts) do
     href = upload_action["href"]
     headers = upload_action["header"] || %{}
+    oid = LFS.oid(operation.upload_info)
 
     with {:ok, content} <- Operation.get_content(operation),
-         :ok <- do_upload(href, content, headers, opts) do
+         :ok <- do_upload(href, content, headers, oid, opts) do
       maybe_verify(verify_action, operation, opts)
     end
   end
 
-  # Determines upload type (single or multipart) and uploads
-  defp do_upload(href, content, headers, opts) do
-    # Check if multipart upload is needed based on headers
-    case Map.get(headers, "x-amz-meta-chunk-size") do
+  # Determines upload type (single or multipart) and uploads.
+  #
+  # The HF LFS batch API returns multipart instructions in the `header` map
+  # of the `upload` action with a `chunk_size` key alongside numeric (string)
+  # part-number keys mapping to S3 presigned URLs. See the canonical Python
+  # implementation: https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/lfs.py
+  defp do_upload(href, content, headers, oid, opts) do
+    case fetch_chunk_size(headers) do
       nil ->
-        # Single part upload
         single_part_upload(href, content, headers, opts)
 
-      _chunk_size ->
-        # Multipart upload
-        multipart_upload(href, content, headers, opts)
+      chunk_size when is_integer(chunk_size) and chunk_size > 0 ->
+        multipart_upload(href, content, headers, chunk_size, oid, opts)
+    end
+  end
+
+  # Looks up the HF multipart `chunk_size` header in a case-insensitive way
+  # and parses it into a positive integer. Returns `nil` when absent, raises
+  # `ArgumentError` when present-but-malformed (mirrors the upstream Python
+  # behavior of failing loudly rather than silently falling back).
+  defp fetch_chunk_size(headers) when is_map(headers) do
+    headers
+    |> Enum.find_value(fn
+      {k, v} when is_binary(k) ->
+        if String.downcase(k) == "chunk_size", do: v
+
+      _ ->
+        nil
+    end)
+    |> case do
+      nil ->
+        nil
+
+      v when is_integer(v) and v > 0 ->
+        v
+
+      v when is_binary(v) ->
+        case Integer.parse(v) do
+          {n, ""} when n > 0 ->
+            n
+
+          _ ->
+            raise ArgumentError,
+                  "Malformed response from LFS batch endpoint: " <>
+                    "`chunk_size` should be a positive integer, got #{inspect(v)}"
+        end
+
+      other ->
+        raise ArgumentError,
+              "Malformed response from LFS batch endpoint: " <>
+                "`chunk_size` should be a positive integer, got #{inspect(other)}"
     end
   end
 
@@ -165,30 +228,47 @@ defmodule HfHub.Commit.LfsUpload do
     end
   end
 
-  # Performs a multipart upload (for very large files)
-  defp multipart_upload(href, content, headers, opts) do
-    # Parse chunk size from headers
-    chunk_size = String.to_integer(headers["x-amz-meta-chunk-size"] || "67108864")
-
+  # Performs a multipart upload using the HF LFS protocol.
+  #
+  # The server-provided `headers` map contains:
+  #   - "chunk_size" – decimal byte-size for every part (last part may be smaller)
+  #   - "00001", "00002", ... – S3 presigned PUT URLs (string digit keys)
+  #
+  # `href` is the *completion* endpoint on the Hub (POST), not an S3 URL.
+  defp multipart_upload(href, content, headers, chunk_size, oid, opts) do
     chunks = chunk_content(content, chunk_size)
     part_urls = parse_part_urls(headers)
 
-    # Upload all chunks
+    cond do
+      part_urls == [] ->
+        {:error, {:multipart_upload_failed, :no_part_urls}}
+
+      length(chunks) != length(part_urls) ->
+        {:error,
+         {:multipart_upload_failed,
+          {:part_count_mismatch, expected: length(chunks), got: length(part_urls)}}}
+
+      true ->
+        do_multipart(href, chunks, part_urls, oid, opts)
+    end
+  end
+
+  defp do_multipart(href, chunks, part_urls, oid, opts) do
     etag_results =
       chunks
+      |> Enum.zip(part_urls)
       |> Enum.with_index(1)
-      |> Enum.map(fn {chunk, part_num} ->
-        url = Enum.at(part_urls, part_num - 1)
+      |> Enum.map(fn {{chunk, url}, part_num} ->
         upload_part(url, chunk, part_num, opts)
       end)
 
-    case Enum.all?(etag_results, &match?({:ok, _}, &1)) do
-      true ->
-        etags = Enum.map(etag_results, fn {:ok, etag} -> etag end)
-        complete_multipart(href, etags, opts)
+    case Enum.split_with(etag_results, &match?({:ok, _}, &1)) do
+      {oks, []} ->
+        etags = Enum.map(oks, fn {:ok, etag} -> etag end)
+        complete_multipart(href, etags, oid, opts)
 
-      false ->
-        {:error, :multipart_upload_failed}
+      {_, [first_error | _]} ->
+        {:error, {:multipart_upload_failed, first_error}}
     end
   end
 
@@ -208,18 +288,25 @@ defmodule HfHub.Commit.LfsUpload do
     do_chunk(rest, chunk_size, [chunk | acc])
   end
 
-  # Parses multipart upload URLs from headers
-  defp parse_part_urls(headers) do
-    # Part URLs are in x-amz-meta-part-1-url, x-amz-meta-part-2-url, etc.
+  # Parses multipart upload URLs from the LFS action header.
+  #
+  # HF's response uses pure decimal string keys ("1", "2", ... or zero-padded
+  # like "00001") that map to S3 presigned PUT URLs. See:
+  # https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/lfs.py
+  defp parse_part_urls(headers) when is_map(headers) do
     headers
-    |> Enum.filter(fn {k, _} -> String.match?(k, ~r/x-amz-meta-part-\d+-url/) end)
-    |> Enum.sort_by(fn {k, _} ->
-      case Regex.run(~r/part-(\d+)-url/, k) do
-        [_, num] -> String.to_integer(num)
-        _ -> 0
-      end
+    |> Enum.flat_map(fn
+      {k, v} when is_binary(k) and is_binary(v) ->
+        case Integer.parse(k) do
+          {n, ""} when n >= 1 -> [{n, v}]
+          _ -> []
+        end
+
+      _ ->
+        []
     end)
-    |> Enum.map(fn {_, v} -> v end)
+    |> Enum.sort_by(fn {n, _} -> n end)
+    |> Enum.map(fn {_, url} -> url end)
   end
 
   # Uploads a single part and returns the ETag
@@ -241,22 +328,44 @@ defmodule HfHub.Commit.LfsUpload do
     end
   end
 
-  # Gets a header value from response headers
-  # Req returns headers as a list of tuples
-  defp get_header(headers, name) do
-    headers
-    |> Enum.find_value(fn
-      {key, value} when is_binary(key) ->
-        if String.downcase(key) == name, do: value
-
-      _ ->
-        nil
-    end)
+  # Gets a header value from a `Req` response.
+  #
+  # `Req` >= 0.4 normalizes response headers into a `%{name => [value, ...]}`
+  # map with downcased names. The fast path is a direct `Map.get/2`. The
+  # case-insensitive fall-back exists so an out-of-spec Req upgrade that ever
+  # ships a casing variant for a single header doesn't silently break the
+  # multipart etag round-trip.
+  defp get_header(headers, name) when is_map(headers) do
+    case Map.get(headers, name) do
+      [value | _] when is_binary(value) -> value
+      value when is_binary(value) -> value
+      _ -> Enum.find_value(headers, &match_header(&1, name))
+    end
   end
 
-  # Completes a multipart upload
-  defp complete_multipart(href, etags, opts) do
+  # Returns the value if the map entry matches `name` case-insensitively.
+  defp match_header({key, [value | _]}, name)
+       when is_binary(key) and is_binary(value),
+       do: header_value(key, value, name)
+
+  defp match_header({key, value}, name)
+       when is_binary(key) and is_binary(value),
+       do: header_value(key, value, name)
+
+  defp match_header(_, _), do: nil
+
+  defp header_value(key, value, name) do
+    if String.downcase(key) == name, do: value
+  end
+
+  # Completes a multipart upload against the Hub's completion endpoint.
+  #
+  # Payload shape must match `_get_completion_payload` in huggingface_hub's
+  # `lfs.py`: `{"oid": <sha256 hex>, "parts": [%{"partNumber": n, "etag": ...}]}`.
+  # The required LFS content-type/accept headers come from `HfHub.LFS.lfs_headers/0`.
+  defp complete_multipart(href, etags, oid, opts) do
     body = %{
+      "oid" => oid,
       "parts" =>
         etags
         |> Enum.with_index(1)
@@ -267,17 +376,18 @@ defmodule HfHub.Commit.LfsUpload do
 
     case Req.post(href,
            json: body,
+           headers: LFS.lfs_headers(),
            receive_timeout: lfs_upload_timeout(opts),
            pool_timeout: lfs_pool_timeout(opts)
          ) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
 
-      {:ok, %{status: status, body: body}} ->
-        {:error, {:complete_failed, status, body}}
+      {:ok, %{status: status, body: resp_body}} ->
+        {:error, {:complete_failed, status, resp_body}}
 
       {:error, reason} ->
-        {:error, reason}
+        {:error, {:lfs_upload_error, reason}}
     end
   end
 
