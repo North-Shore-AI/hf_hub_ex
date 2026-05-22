@@ -33,7 +33,7 @@ defmodule HfHub.Commit do
   """
 
   alias HfHub.{Auth, HTTP, LFS}
-  alias HfHub.Commit.{CommitInfo, LfsUpload, Operation}
+  alias HfHub.Commit.{CommitInfo, LfsUpload, Operation, Preupload}
   alias HfHub.Path, as: HubPath
 
   # 10MB threshold for LFS uploads
@@ -80,7 +80,7 @@ defmodule HfHub.Commit do
   def create(repo_id, operations, opts \\ []) when is_list(operations) do
     with :ok <- validate_options(opts),
          {:ok, token} <- get_token(opts),
-         {:ok, prepared_ops} <- prepare_operations(operations),
+         {:ok, prepared_ops} <- prepare_operations(repo_id, operations, token, opts),
          {:ok, uploaded_ops} <- upload_lfs_files(repo_id, prepared_ops, token, opts),
          {:ok, response} <- commit_operations(repo_id, uploaded_ops, token, opts) do
       {:ok, CommitInfo.from_response(response)}
@@ -323,19 +323,55 @@ defmodule HfHub.Commit do
     end
   end
 
-  defp prepare_operations(operations) do
-    # Determine upload mode for each add operation
-    prepared =
-      Enum.map(operations, fn
-        %Operation.Add{} = op ->
-          mode = if needs_lfs?(op), do: :lfs, else: :regular
-          %{op | upload_mode: mode}
-
-        other ->
-          other
+  # Ask the Hub which files should be uploaded as LFS vs. regular blobs.
+  # This mirrors `_fetch_upload_modes` in `huggingface_hub/_commit_api.py`
+  # and is required because the destination repo's `.gitattributes` may
+  # track filetypes (e.g. `*.safetensors`) as LFS regardless of size.
+  #
+  # Callers can opt out with `preupload: false`, in which case we fall back
+  # to the local size threshold — useful for offline-only test fixtures.
+  defp prepare_operations(repo_id, operations, token, opts) do
+    additions =
+      Enum.filter(operations, fn
+        %Operation.Add{} -> true
+        _ -> false
       end)
 
-    {:ok, prepared}
+    case fetch_modes(repo_id, additions, token, opts) do
+      {:ok, modes} ->
+        prepared =
+          Enum.map(operations, fn
+            %Operation.Add{} = op ->
+              mode = Map.get(modes, op.path_in_repo, fallback_mode(op))
+              %{op | upload_mode: mode}
+
+            other ->
+              other
+          end)
+
+        {:ok, prepared}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp fetch_modes(_repo_id, [], _token, _opts), do: {:ok, %{}}
+
+  defp fetch_modes(repo_id, additions, token, opts) do
+    if Keyword.get(opts, :preupload, true) do
+      Preupload.fetch_upload_modes(repo_id, additions, token,
+        repo_type: opts[:repo_type] || :model,
+        revision: opts[:revision] || "main",
+        create_pr: Keyword.get(opts, :create_pr, false)
+      )
+    else
+      {:ok, Map.new(additions, fn op -> {op.path_in_repo, fallback_mode(op)} end)}
+    end
+  end
+
+  defp fallback_mode(%Operation.Add{} = op) do
+    if needs_lfs?(op), do: :lfs, else: :regular
   end
 
   defp upload_lfs_files(repo_id, operations, token, opts) do

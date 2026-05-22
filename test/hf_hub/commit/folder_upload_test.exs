@@ -75,7 +75,7 @@ defmodule HfHub.Commit.FolderUploadTest do
         )
       end)
 
-      {:ok, _} = Commit.upload_folder(dir, "user/repo", token: "hf_test")
+      {:ok, _} = Commit.upload_folder(dir, "user/repo", token: "hf_test", preupload: false)
     end
 
     test "respects allow_patterns", %{dir: dir, bypass: bypass} do
@@ -103,7 +103,8 @@ defmodule HfHub.Commit.FolderUploadTest do
       {:ok, _} =
         Commit.upload_folder(dir, "user/repo",
           token: "hf_test",
-          allow_patterns: ["*.json"]
+          allow_patterns: ["*.json"],
+          preupload: false
         )
     end
 
@@ -131,7 +132,8 @@ defmodule HfHub.Commit.FolderUploadTest do
       {:ok, _} =
         Commit.upload_folder(dir, "user/repo",
           token: "hf_test",
-          ignore_patterns: ["*.bin"]
+          ignore_patterns: ["*.bin"],
+          preupload: false
         )
     end
 
@@ -156,7 +158,7 @@ defmodule HfHub.Commit.FolderUploadTest do
         )
       end)
 
-      {:ok, _} = Commit.upload_folder(dir, "user/repo", token: "hf_test")
+      {:ok, _} = Commit.upload_folder(dir, "user/repo", token: "hf_test", preupload: false)
     end
 
     test "uses custom commit message", %{dir: dir, bypass: bypass} do
@@ -182,7 +184,8 @@ defmodule HfHub.Commit.FolderUploadTest do
       {:ok, _} =
         Commit.upload_folder(dir, "user/repo",
           token: "hf_test",
-          commit_message: "Upload my model"
+          commit_message: "Upload my model",
+          preupload: false
         )
     end
 
@@ -191,7 +194,8 @@ defmodule HfHub.Commit.FolderUploadTest do
         Commit.upload_folder(
           "/nonexistent/path",
           "user/repo",
-          token: "hf_test"
+          token: "hf_test",
+          preupload: false
         )
     end
 
@@ -202,7 +206,8 @@ defmodule HfHub.Commit.FolderUploadTest do
         Commit.upload_folder(
           file_path,
           "user/repo",
-          token: "hf_test"
+          token: "hf_test",
+          preupload: false
         )
     end
 
@@ -235,7 +240,8 @@ defmodule HfHub.Commit.FolderUploadTest do
       {:ok, _} =
         Commit.upload_folder(dir, "user/repo",
           token: "hf_test",
-          delete_patterns: ["old_file.bin"]
+          delete_patterns: ["old_file.bin"],
+          preupload: false
         )
     end
   end
@@ -259,7 +265,8 @@ defmodule HfHub.Commit.FolderUploadTest do
       {:ok, infos} =
         Commit.upload_large_folder(dir, "user/repo",
           token: "hf_test",
-          multi_commits: false
+          multi_commits: false,
+          preupload: false
         )
 
       assert length(infos) == 1
@@ -280,7 +287,9 @@ defmodule HfHub.Commit.FolderUploadTest do
         )
       end)
 
-      {:ok, [info]} = Commit.upload_large_folder(dir, "user/repo", token: "hf_test")
+      {:ok, [info]} =
+        Commit.upload_large_folder(dir, "user/repo", token: "hf_test", preupload: false)
+
       assert info.oid == "abc"
     end
   end

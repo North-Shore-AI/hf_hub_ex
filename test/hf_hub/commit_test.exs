@@ -66,7 +66,8 @@ defmodule HfHub.CommitTest do
           ~s({"key": "value"}),
           "config.json",
           "user/repo",
-          token: "hf_test_token"
+          token: "hf_test_token",
+          preupload: false
         )
 
       assert %CommitInfo{} = info
@@ -100,7 +101,8 @@ defmodule HfHub.CommitTest do
           "file.txt",
           "user/repo",
           token: "hf_test",
-          commit_message: "Custom message"
+          commit_message: "Custom message",
+          preupload: false
         )
     end
 
@@ -118,7 +120,8 @@ defmodule HfHub.CommitTest do
             "content",
             "file.txt",
             "user/repo",
-            commit_message: "Test"
+            commit_message: "Test",
+            preupload: false
           )
       after
         if original_token, do: Application.put_env(:hf_hub, :token, original_token)
@@ -133,7 +136,8 @@ defmodule HfHub.CommitTest do
         Commit.create(
           "user/repo",
           [Operation.add("file.txt", "content")],
-          token: "hf_test"
+          token: "hf_test",
+          preupload: false
         )
     end
 
@@ -143,7 +147,8 @@ defmodule HfHub.CommitTest do
           "user/repo",
           [Operation.add("file.txt", "content")],
           token: "hf_test",
-          commit_message: ""
+          commit_message: "",
+          preupload: false
         )
     end
 
@@ -176,7 +181,8 @@ defmodule HfHub.CommitTest do
             Operation.delete("old.txt")
           ],
           token: "hf_test",
-          commit_message: "Update files"
+          commit_message: "Update files",
+          preupload: false
         )
     end
 
@@ -201,7 +207,8 @@ defmodule HfHub.CommitTest do
           [Operation.add("data.json", "[]")],
           token: "hf_test",
           commit_message: "Add data",
-          repo_type: :dataset
+          repo_type: :dataset,
+          preupload: false
         )
     end
 
@@ -226,7 +233,8 @@ defmodule HfHub.CommitTest do
           [Operation.add("app.py", "import gradio")],
           token: "hf_test",
           commit_message: "Add app",
-          repo_type: :space
+          repo_type: :space,
+          preupload: false
         )
     end
 
@@ -251,7 +259,8 @@ defmodule HfHub.CommitTest do
           [Operation.add("file.txt", "content")],
           token: "hf_test",
           commit_message: "Add file",
-          revision: "dev"
+          revision: "dev",
+          preupload: false
         )
     end
 
@@ -281,7 +290,8 @@ defmodule HfHub.CommitTest do
           [Operation.add("file.txt", "content")],
           token: "hf_test",
           commit_message: "Add file",
-          revision: "feature/upload #1"
+          revision: "feature/upload #1",
+          preupload: false
         )
     end
 
@@ -319,7 +329,8 @@ defmodule HfHub.CommitTest do
           [Operation.add("file.txt", "content")],
           token: "hf_test",
           commit_message: "Add file",
-          create_pr: true
+          create_pr: true,
+          preupload: false
         )
 
       assert info.pr_url == "https://huggingface.co/user/repo/discussions/1"
@@ -354,7 +365,8 @@ defmodule HfHub.CommitTest do
           [Operation.add("file.txt", "content")],
           token: "hf_test",
           commit_message: "Add file",
-          commit_description: "This is a longer description"
+          commit_description: "This is a longer description",
+          preupload: false
         )
     end
   end
@@ -387,7 +399,8 @@ defmodule HfHub.CommitTest do
         Commit.delete_file(
           "old_file.bin",
           "user/repo",
-          token: "hf_test"
+          token: "hf_test",
+          preupload: false
         )
     end
 
@@ -417,7 +430,8 @@ defmodule HfHub.CommitTest do
           "old.txt",
           "user/repo",
           token: "hf_test",
-          commit_message: "Remove old file"
+          commit_message: "Remove old file",
+          preupload: false
         )
     end
   end

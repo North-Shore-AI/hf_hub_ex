@@ -56,7 +56,8 @@ defmodule HfHub.WireShapeSmokeTest do
                token: "hf_smoke",
                repo_type: :dataset,
                commit_message: "smoke",
-               commit_description: "wire-shape smoke"
+               commit_description: "wire-shape smoke",
+               preupload: false
              )
   end
 end

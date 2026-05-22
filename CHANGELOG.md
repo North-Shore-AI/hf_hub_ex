@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-05-21
 
 ### Fixed
+- **Preupload preflight** — `HfHub.Commit.create/3` now POSTs each commit's
+  add-operations to `/api/{type}s/{repo_id}/preupload/{revision}` to ask the
+  Hub which files should ride LFS vs. regular base64. The previous local 10 MB
+  size threshold caused small `.safetensors`/`.bin`/etc. files to be sent as
+  base64 even when the destination repo's `.gitattributes` tracked their
+  extension as LFS, producing
+  `400 "Your push was rejected because it contains binary files"`. This is
+  identical in shape to `_fetch_upload_modes` in
+  `huggingface_hub/_commit_api.py`. Callers can opt out with
+  `preupload: false` to keep the legacy size-threshold-only fallback (used
+  primarily by offline tests).
 - **Commit payload wire shape** — `HfHub.Commit.create/3` (and therefore
   `upload_file/4`, `upload_folder/3`, `upload_large_folder/3`, `delete_file/3`,
   `delete_folder/3`) now sends the canonical
