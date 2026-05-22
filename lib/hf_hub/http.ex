@@ -372,6 +372,7 @@ defmodule HfHub.HTTP do
     # leak into the next download made by the same caller process.
     Process.delete(:hf_download_progress)
     Process.delete(:hf_download_first_chunk)
+    Process.delete(:hf_download_saw_non_success_status)
 
     range? = range_request?(headers)
     into_fun = make_into_lambda(file, range?, progress_callback)
@@ -400,24 +401,46 @@ defmodule HfHub.HTTP do
 
     Process.delete(:hf_download_progress)
     Process.delete(:hf_download_first_chunk)
+    Process.delete(:hf_download_saw_non_success_status)
     result
   end
 
   # Build the `into:` lambda used by Req for streaming responses.
   #
-  # On the first chunk, if we sent a Range header and the server replied 200
-  # (i.e. it ignored Range and is restarting from scratch), we truncate any
-  # previously-written bytes off the file before appending the new body. This
-  # prevents `[stale_partial ++ fresh_body]` corruption on resume against a
-  # server that does not honor Range.
+  # On the first **successful** chunk:
   #
-  # Each chunk is appended to the file. When a progress_callback is provided,
-  # we additionally track bytes-downloaded and invoke the callback per chunk.
+  #   * If we sent a Range header and the server replied 200 (i.e. it
+  #     ignored Range and is restarting from scratch), we truncate any
+  #     previously-written bytes off the file before appending the new
+  #     body. This prevents `[stale_partial ++ fresh_body]` corruption
+  #     on resume against a server that does not honor Range.
+  #
+  #   * If we saw any chunks before this with a non-success status
+  #     (typically a 3xx redirect body, since Req streams redirect-source
+  #     bodies through the `into:` lambda before following the redirect),
+  #     we truncate them off the file too. Without this, the cache file
+  #     becomes `["Temporary Redirect. Redirecting to ..." ++ real_body]`.
+  #
+  # Non-success chunks (3xx, 4xx, 5xx bodies that Req delivers through
+  # the lambda) are NOT written to the file at all. The eventual
+  # `do_req_download/5` cond either resolves them to a real error or
+  # they get superseded by a followed-redirect 200 body.
   defp make_into_lambda(file, range_request?, progress_callback) do
     fn {:data, chunk}, {_req, resp} = acc ->
-      :ok = maybe_restart_on_first_chunk(file, resp, range_request?)
-      IO.binwrite(file, chunk)
-      maybe_report_progress(resp, chunk, progress_callback)
+      if resp.status in [200, 206] do
+        :ok = maybe_restart_on_first_chunk(file, resp, range_request?)
+        IO.binwrite(file, chunk)
+        maybe_report_progress(resp, chunk, progress_callback)
+      else
+        # Skip the chunk; it's a redirect / error body that should not
+        # land on disk. Mark that we saw a pre-success status so the
+        # next 200/206 chunk knows to truncate any debris from earlier
+        # write attempts in this request (defence in depth — current
+        # design path does not write here, but keeping the marker
+        # makes the contract explicit).
+        Process.put(:hf_download_saw_non_success_status, true)
+      end
+
       {:cont, acc}
     end
   end

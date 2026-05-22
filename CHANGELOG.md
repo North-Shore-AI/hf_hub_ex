@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-05-21
+
+### Fixed
+- **Redirect-body cache corruption** — `HfHub.HTTP.download_file/3` no
+  longer writes a 3xx redirect-source body to the destination file when
+  Req follows the redirect. Previously, a `307 Temporary Redirect`
+  response from the HF endpoint (e.g. `/resolve/<rev>/<path>` → CDN-side
+  `/api/resolve-cache/...`) caused the cache file to become
+  `["Temporary Redirect. Redirecting to ..." ++ resolved_body]`,
+  producing checksum mismatches against pinned SHA-256 descriptors. The
+  streaming lambda now skips chunks whose `resp.status` is not in
+  `[200, 206]`. Reproduced + pinned in `test/hf_hub/http_test.exs`:
+  "307 redirect body is NOT persisted to the destination — only the
+  final 200 body lands". Surfaced by `mix trinity.artifact.fetch` on
+  a clean-room clone of `trinity_coordinator` against
+  `https://huggingface.co/datasets/nshkrdotcom/trinity-coordinator-adapted-qwen3-0.6b`.
+
 ## [0.3.0] - 2026-05-21
 
 ### Fixed

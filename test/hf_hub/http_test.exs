@@ -510,6 +510,45 @@ defmodule HfHub.HTTPTest do
       refute File.exists?(incomplete)
     end
 
+    test "307 redirect body is NOT persisted to the destination — only the final 200 body lands",
+         %{bypass: bypass} do
+      # When the HF endpoint redirects (e.g. /resolve → /api/resolve-cache),
+      # Req streams the 307 response body to our `into:` lambda BEFORE it
+      # follows the redirect. The lambda must skip non-success-status
+      # chunks so the cache file does not become
+      # `["Temporary Redirect ..." ++ real_body]`.
+      bypass2 = Bypass.open()
+
+      Bypass.expect_once(bypass, "GET", "/orig", fn conn ->
+        target = "http://localhost:#{bypass2.port}/redirected"
+
+        conn
+        |> Plug.Conn.put_resp_header("location", target)
+        |> Plug.Conn.resp(307, "Temporary Redirect. Redirecting to /redirected")
+      end)
+
+      Bypass.expect_once(bypass2, "GET", "/redirected", fn conn ->
+        Plug.Conn.resp(conn, 200, "REAL_BODY_BYTES")
+      end)
+
+      destination =
+        Path.join(
+          System.tmp_dir!(),
+          "redirect_body_#{System.unique_integer([:positive])}.bin"
+        )
+
+      on_exit(fn ->
+        File.rm(destination)
+        File.rm(destination <> ".incomplete")
+      end)
+
+      url = "http://localhost:#{bypass.port}/orig"
+
+      assert :ok = HfHub.HTTP.download_file(url, destination)
+      assert File.read!(destination) == "REAL_BODY_BYTES"
+      refute File.exists?(destination <> ".incomplete")
+    end
+
     test "resume: true on 416 leaves an existing destination untouched and clears .incomplete",
          %{bypass: bypass} do
       destination =
