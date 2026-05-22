@@ -108,7 +108,7 @@ defmodule HfHub.Download do
     cache_path = HfHub.FS.file_path(repo_id, repo_type, filename, revision)
 
     result =
-      if File.exists?(cache_path) and not force_download do
+      if cached_file?(cache_path) and not force_download do
         {:ok, cache_path}
       else
         # Download the file
@@ -125,16 +125,27 @@ defmodule HfHub.Download do
   defp do_download_file(url, cache_path, token, progress_callback) do
     with :ok <- HfHub.FS.ensure_cache_dir(),
          :ok <- File.mkdir_p(Path.dirname(cache_path)),
-         {:ok, lock_ref} <- HfHub.FS.lock_file(cache_path, Path.basename(cache_path)),
-         :ok <-
-           HfHub.HTTP.download_file(url, cache_path,
-             token: token,
-             progress_callback: progress_callback
-           ) do
-      HfHub.FS.unlock_file(lock_ref)
-      {:ok, cache_path}
+         {:ok, lock_ref} <- HfHub.FS.lock_file(cache_path, Path.basename(cache_path)) do
+      try do
+        case HfHub.HTTP.download_file(url, cache_path,
+               token: token,
+               progress_callback: progress_callback
+             ) do
+          :ok -> {:ok, cache_path}
+          {:error, reason} -> {:error, reason}
+        end
+      after
+        HfHub.FS.unlock_file(lock_ref)
+      end
     else
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp cached_file?(path) do
+    case File.stat(path) do
+      {:ok, %File.Stat{type: :regular, size: size}} when size > 0 -> true
+      _ -> false
     end
   end
 

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-05-21
 
 ### Fixed
+- **Atomic downloads and cache hardening** — `HfHub.HTTP.download_file/3`
+  now streams into `<destination>.incomplete` and renames into place only after
+  a successful `200`/`206`, so failed `404`/`401`/network responses no longer
+  leave 0-byte cache poison or clobber an existing cached file.
+  `HfHub.Download.hf_hub_download/1` now treats pre-existing 0-byte cache
+  entries as corrupt and redownloads them, and failed downloads release cache
+  locks on every exit path.
 - **Preupload preflight** — `HfHub.Commit.create/3` now POSTs each commit's
   add-operations to `/api/{type}s/{repo_id}/preupload/{revision}` to ask the
   Hub which files should ride LFS vs. regular base64. The previous local 10 MB

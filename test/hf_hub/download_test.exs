@@ -39,6 +39,46 @@ defmodule HfHub.DownloadTest do
       assert File.read!(path) == ~s({"model": "test"})
     end
 
+    test "treats zero-byte cache entries as corrupt and redownloads", %{bypass: bypass} do
+      cache_path = HfHub.FS.file_path("test-repo", :model, "config.json", "main")
+      File.mkdir_p!(Path.dirname(cache_path))
+      File.write!(cache_path, "")
+
+      Bypass.expect_once(bypass, "GET", "/test-repo/resolve/main/config.json", fn conn ->
+        Plug.Conn.resp(conn, 200, ~s({"model":"redownloaded"}))
+      end)
+
+      assert {:ok, ^cache_path} =
+               HfHub.Download.hf_hub_download(
+                 repo_id: "test-repo",
+                 filename: "config.json",
+                 repo_type: :model
+               )
+
+      assert File.read!(cache_path) == ~s({"model":"redownloaded"})
+    end
+
+    test "cleans cache locks and partial files when download fails", %{
+      bypass: bypass,
+      cache_dir: cache_dir
+    } do
+      Bypass.expect_once(bypass, "GET", "/missing-repo/resolve/main/file.txt", fn conn ->
+        Plug.Conn.resp(conn, 404, "Not Found")
+      end)
+
+      cache_path = HfHub.FS.file_path("missing-repo", :model, "file.txt", "main")
+
+      assert {:error, :not_found} =
+               HfHub.Download.hf_hub_download(
+                 repo_id: "missing-repo",
+                 filename: "file.txt"
+               )
+
+      refute File.exists?(cache_path)
+      refute File.exists?(cache_path <> ".incomplete")
+      assert [] = Path.wildcard(Path.join([cache_dir, "locks", "**", "*.lock"]))
+    end
+
     test "returns cached file without downloading again", %{bypass: bypass, cache_dir: _cache_dir} do
       # First download
       Bypass.expect_once(bypass, "GET", "/test-repo/resolve/main/config.json", fn conn ->
@@ -64,9 +104,17 @@ defmodule HfHub.DownloadTest do
       assert File.read!(path2) == "original content"
     end
 
-    test "force_download bypasses cache", %{bypass: bypass} do
+    test "force_download bypasses cache and atomically replaces the cached file", %{bypass: bypass} do
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
       Bypass.expect(bypass, "GET", "/test-repo/resolve/main/config.json", fn conn ->
-        Plug.Conn.resp(conn, 200, "new content")
+        body =
+          Agent.get_and_update(counter, fn
+            0 -> {"original content", 1}
+            n -> {"new content", n + 1}
+          end)
+
+        Plug.Conn.resp(conn, 200, body)
       end)
 
       {:ok, path1} =
@@ -75,6 +123,8 @@ defmodule HfHub.DownloadTest do
           filename: "config.json",
           repo_type: :model
         )
+
+      assert File.read!(path1) == "original content"
 
       {:ok, path2} =
         HfHub.Download.hf_hub_download(
@@ -85,6 +135,8 @@ defmodule HfHub.DownloadTest do
         )
 
       assert path1 == path2
+      assert File.read!(path2) == "new content"
+      refute File.exists?(path2 <> ".incomplete")
     end
 
     test "handles 404 errors", %{bypass: bypass} do

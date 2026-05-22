@@ -382,15 +382,46 @@ defmodule HfHub.HTTPTest do
       assert :ok = HfHub.HTTP.download_file(url, destination, token: "test_token")
     end
 
-    test "handles 404 errors", %{bypass: bypass} do
+    test "handles 404 errors without leaving a destination or incomplete file", %{bypass: bypass} do
       Bypass.expect_once(bypass, "GET", "/test.txt", fn conn ->
         Plug.Conn.resp(conn, 404, "Not Found")
       end)
 
       url = "http://localhost:#{bypass.port}/test.txt"
-      destination = Path.join(System.tmp_dir!(), "test_404.txt")
+
+      destination =
+        Path.join(System.tmp_dir!(), "test_404_#{System.unique_integer([:positive])}.txt")
+
+      on_exit(fn ->
+        File.rm(destination)
+        File.rm(destination <> ".incomplete")
+      end)
 
       assert {:error, :not_found} = HfHub.HTTP.download_file(url, destination)
+      refute File.exists?(destination)
+      refute File.exists?(destination <> ".incomplete")
+    end
+
+    test "failed overwrite preserves the existing destination", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "GET", "/test.txt", fn conn ->
+        Plug.Conn.resp(conn, 400, "Bad Request")
+      end)
+
+      url = "http://localhost:#{bypass.port}/test.txt"
+
+      destination =
+        Path.join(System.tmp_dir!(), "test_overwrite_#{System.unique_integer([:positive])}.txt")
+
+      File.write!(destination, "cached content")
+
+      on_exit(fn ->
+        File.rm(destination)
+        File.rm(destination <> ".incomplete")
+      end)
+
+      assert {:error, {:http_error, 400}} = HfHub.HTTP.download_file(url, destination)
+      assert File.read!(destination) == "cached content"
+      refute File.exists?(destination <> ".incomplete")
     end
   end
 end

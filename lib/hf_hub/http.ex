@@ -256,45 +256,82 @@ defmodule HfHub.HTTP do
     resume = Keyword.get(opts, :resume, false)
     progress_callback = Keyword.get(opts, :progress_callback)
 
-    # Ensure parent directory exists
     with :ok <- destination |> Path.dirname() |> File.mkdir_p(),
-         {:ok, {headers, output_mode}} <- prepare_resume(headers, resume, destination) do
-      do_download(url, destination, headers, output_mode, progress_callback)
+         {:ok, {headers, output_mode, download_path}} <-
+           prepare_download_target(headers, resume, destination) do
+      do_download(url, destination, download_path, headers, output_mode, progress_callback)
     end
   end
 
-  defp prepare_resume(headers, true, destination) do
-    case File.stat(destination) do
+  defp prepare_download_target(headers, true, destination) do
+    incomplete_path = incomplete_path(destination)
+
+    cond do
+      File.exists?(incomplete_path) ->
+        add_resume_header(headers, incomplete_path, :append)
+
+      File.exists?(destination) ->
+        with :ok <- File.cp(destination, incomplete_path) do
+          add_resume_header(headers, incomplete_path, :append)
+        end
+
+      true ->
+        {:ok, {headers, :write, incomplete_path}}
+    end
+  end
+
+  defp prepare_download_target(headers, false, destination) do
+    incomplete_path = incomplete_path(destination)
+    File.rm(incomplete_path)
+    {:ok, {headers, :write, incomplete_path}}
+  end
+
+  defp add_resume_header(headers, path, output_mode) do
+    case File.stat(path) do
       {:ok, %File.Stat{size: file_size}} ->
         range_header = {"range", "bytes=#{file_size}-"}
-        {:ok, {[range_header | headers], :append}}
-
-      {:error, :enoent} ->
-        {:ok, {headers, :write}}
+        {:ok, {[range_header | headers], output_mode, path}}
 
       {:error, reason} ->
         {:error, reason}
     end
   end
 
-  defp prepare_resume(headers, false, _destination) do
-    {:ok, {headers, :write}}
-  end
-
-  @spec do_download(String.t(), Path.t(), list(), atom(), function() | nil) ::
+  @spec do_download(String.t(), Path.t(), Path.t(), list(), atom(), function() | nil) ::
           :ok | {:error, term()}
-  defp do_download(url, destination, headers, output_mode, progress_callback) do
+  defp do_download(url, destination, download_path, headers, output_mode, progress_callback) do
     http_opts = Config.http_opts()
     file_modes = [:binary, output_mode]
 
-    with {:ok, file} <- File.open(destination, file_modes),
-         result <- do_req_download(url, headers, file, http_opts, progress_callback),
-         :ok <- File.close(file) do
-      result
-    else
+    case File.open(download_path, file_modes) do
+      {:ok, file} ->
+        result = do_req_download(url, headers, file, http_opts, progress_callback)
+        close_result = File.close(file)
+        finalize_download(result, close_result, download_path, destination)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp finalize_download(:ok, :ok, download_path, destination) do
+    case File.rename(download_path, destination) do
+      :ok -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp finalize_download(:ok, {:error, reason}, download_path, _destination) do
+    File.rm(download_path)
+    {:error, reason}
+  end
+
+  defp finalize_download({:error, reason}, _close_result, download_path, _destination) do
+    File.rm(download_path)
+    {:error, reason}
+  end
+
+  defp incomplete_path(destination), do: destination <> ".incomplete"
 
   defp do_req_download(url, headers, file, http_opts, nil) do
     # No progress callback - use simple streaming
