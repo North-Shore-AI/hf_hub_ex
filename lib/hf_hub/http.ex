@@ -38,7 +38,7 @@ defmodule HfHub.HTTP do
       headers: headers,
       params: params,
       receive_timeout: http_opts[:receive_timeout],
-      decode_json: [keys: :strings]
+      decoders: [json: &Jason.decode(&1, keys: :strings)]
     ]
 
     case Req.get(url, req_opts) do
@@ -125,7 +125,7 @@ defmodule HfHub.HTTP do
       headers: headers,
       params: params,
       receive_timeout: http_opts[:receive_timeout],
-      decode_json: [keys: :strings]
+      decoders: [json: &Jason.decode(&1, keys: :strings)]
     ]
 
     do_get_paginated(url, req_opts, [])
@@ -531,7 +531,7 @@ defmodule HfHub.HTTP do
       json: body,
       headers: headers,
       receive_timeout: http_opts[:receive_timeout],
-      decode_json: [keys: :strings]
+      decoders: [json: &Jason.decode(&1, keys: :strings)]
     ]
 
     case method do
@@ -558,7 +558,7 @@ defmodule HfHub.HTTP do
       headers: headers,
       params: params,
       receive_timeout: http_opts[:receive_timeout],
-      decode_json: [keys: :strings]
+      decoders: [json: &Jason.decode(&1, keys: :strings)]
     ]
 
     case method do

@@ -71,6 +71,7 @@ defmodule HfHub do
 
   - `HfHub.Api` — Hub API client (models, datasets, spaces)
   - `HfHub.Download` — File download with caching
+  - `HfHub.Revision` — Mutable-ref to immutable-commit resolution
   - `HfHub.Cache` — Cache management and statistics
   - `HfHub.FS` — Filesystem utilities for cache
   - `HfHub.Auth` — Authentication and authorization
@@ -93,6 +94,10 @@ defmodule HfHub do
     * `{:local, directory}` - Local directory
   """
   @type repository :: HfHub.Repository.t()
+
+  @doc "Resolves a Hub revision to an immutable commit hash."
+  @spec resolve_revision(repo_id(), keyword()) :: {:ok, HfHub.Revision.t()} | {:error, term()}
+  def resolve_revision(repo_id, opts \\ []), do: HfHub.Revision.resolve(repo_id, opts)
 
   # Delegates for Bumblebee-compatible API
   defdelegate get_repo_files(repository), to: HfHub.RepoFiles

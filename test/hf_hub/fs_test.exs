@@ -115,6 +115,31 @@ defmodule HfHub.FSTest do
     end
   end
 
+  describe "snapshot and ref paths" do
+    test "constructs a commit-keyed snapshot path", %{cache_dir: temp_dir} do
+      commit = "0123456789abcdef0123456789abcdef01234567"
+
+      assert HfHub.FS.snapshot_path("org/model", :model, commit) ==
+               Path.join([temp_dir, "hub", "models--org--model", "snapshots", commit])
+    end
+
+    test "writes and reads slash-separated revision refs", %{cache_dir: temp_dir} do
+      commit = "0123456789abcdef0123456789abcdef01234567"
+
+      assert :ok = HfHub.FS.write_ref("org/model", :model, "refs/pr/1", commit)
+      assert {:ok, ^commit} = HfHub.FS.read_ref("org/model", :model, "refs/pr/1")
+
+      assert HfHub.FS.ref_path("org/model", :model, "refs/pr/1") ==
+               Path.join([temp_dir, "hub", "models--org--model", "refs", "refs", "pr", "1"])
+    end
+
+    test "rejects path traversal in cache refs" do
+      assert_raise ArgumentError, fn ->
+        HfHub.FS.ref_path("org/model", :model, "../escape")
+      end
+    end
+  end
+
   describe "lock_file/2 and unlock_file/1" do
     test "acquires and releases lock successfully", %{cache_dir: _temp_dir} do
       assert {:ok, lock} = HfHub.FS.lock_file("test-repo", "test-file.bin")

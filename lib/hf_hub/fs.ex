@@ -65,7 +65,48 @@ defmodule HfHub.FS do
   end
 
   @doc """
-  Gets the local path for a file in a repository.
+  Gets the local path for a repository snapshot.
+
+  Immutable workflows should pass a resolved commit hash as `revision`.
+  """
+  @spec snapshot_path(HfHub.repo_id(), HfHub.repo_type(), HfHub.revision()) :: Path.t()
+  def snapshot_path(repo_id, repo_type, revision) do
+    Path.join([repo_path(repo_id, repo_type), "snapshots", revision])
+  end
+
+  @doc """
+  Gets the local path for a cached mutable revision reference.
+
+  Slash-separated refs are represented as nested paths, matching the
+  HuggingFace cache layout (for example `refs/pr/1`).
+  """
+  @spec ref_path(HfHub.repo_id(), HfHub.repo_type(), HfHub.revision()) :: Path.t()
+  def ref_path(repo_id, repo_type, revision) do
+    Path.join([repo_path(repo_id, repo_type), "refs"] ++ revision_segments!(revision))
+  end
+
+  @doc "Reads a cached revision reference."
+  @spec read_ref(HfHub.repo_id(), HfHub.repo_type(), HfHub.revision()) ::
+          {:ok, String.t()} | {:error, File.posix()}
+  def read_ref(repo_id, repo_type, revision) do
+    with {:ok, contents} <- File.read(ref_path(repo_id, repo_type, revision)) do
+      {:ok, String.trim(contents)}
+    end
+  end
+
+  @doc "Writes a cached revision reference."
+  @spec write_ref(HfHub.repo_id(), HfHub.repo_type(), HfHub.revision(), String.t()) ::
+          :ok | {:error, File.posix()}
+  def write_ref(repo_id, repo_type, revision, commit_hash) when is_binary(commit_hash) do
+    path = ref_path(repo_id, repo_type, revision)
+
+    with :ok <- File.mkdir_p(Path.dirname(path)) do
+      File.write(path, commit_hash)
+    end
+  end
+
+  @doc """
+  Gets the local path for a file in a repository snapshot.
 
   ## Arguments
 
@@ -82,8 +123,7 @@ defmodule HfHub.FS do
   @spec file_path(HfHub.repo_id(), HfHub.repo_type(), HfHub.filename(), HfHub.revision()) ::
           Path.t()
   def file_path(repo_id, repo_type, filename, revision \\ "main") do
-    repo = repo_path(repo_id, repo_type)
-    Path.join([repo, "snapshots", revision, filename])
+    Path.join(snapshot_path(repo_id, repo_type, revision), filename)
   end
 
   @doc """
@@ -149,6 +189,21 @@ defmodule HfHub.FS do
       nil ->
         {:error, :invalid_lock}
     end
+  end
+
+  defp revision_segments!(revision) when is_binary(revision) do
+    segments = String.split(revision, "/", trim: true)
+
+    if revision == "" or Path.type(revision) == :absolute or
+         Enum.any?(segments, &(&1 in [".", ".."])) do
+      raise ArgumentError, "invalid cache revision: #{inspect(revision)}"
+    end
+
+    segments
+  end
+
+  defp revision_segments!(revision) do
+    raise ArgumentError, "invalid cache revision: #{inspect(revision)}"
   end
 
   @doc """

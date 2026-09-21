@@ -1,14 +1,14 @@
 defmodule HfHub.MixProject do
   use Mix.Project
 
-  @version "0.3.1"
+  @version "0.4.0"
   @source_url "https://github.com/North-Shore-AI/hf_hub_ex"
 
   def project do
     [
       app: :hf_hub,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       package: package(),
@@ -22,8 +22,13 @@ defmodule HfHub.MixProject do
         plt_add_apps: [:mix, :ex_unit],
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
       ],
-      test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
@@ -42,26 +47,26 @@ defmodule HfHub.MixProject do
   defp deps do
     [
       # HTTP client
-      {:req, "~> 0.5"},
+      {:req, "~> 0.7.4"},
 
       # JSON parsing
-      {:jason, "~> 1.4"},
+      {:jason, "~> 1.4.5"},
 
       # YAML parsing for model/dataset cards
-      {:yaml_elixir, "~> 2.9"},
+      {:yaml_elixir, "~> 2.12.2"},
 
       # Optional: DataFrame support for dataset loading
-      {:explorer, "~> 0.10", optional: true},
+      {:explorer, "~> 0.12.0", optional: true},
 
       # Test support (also silences ExCoveralls' optional CAStore warning)
-      {:castore, "~> 1.0", only: :test},
+      {:castore, "~> 1.0.21", only: :test},
 
       # Development and testing
-      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
-      {:excoveralls, "~> 0.18", only: :test},
-      {:bypass, "~> 2.1", only: :test}
+      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false},
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4.8", only: [:dev], runtime: false},
+      {:excoveralls, "~> 0.18.5", only: :test},
+      {:bypass, "~> 2.1.0", only: :test}
     ]
   end
 
@@ -90,6 +95,7 @@ defmodule HfHub.MixProject do
         "Core API": [
           HfHub.Api,
           HfHub.Download,
+          HfHub.Revision,
           HfHub.DatasetFiles,
           HfHub.Extract,
           HfHub.Cache,

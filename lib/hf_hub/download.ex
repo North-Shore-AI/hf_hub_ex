@@ -27,6 +27,8 @@ defmodule HfHub.Download do
       )
   """
 
+  alias HfHub.Revision
+
   @type download_opts :: [
           repo_id: HfHub.repo_id(),
           filename: HfHub.filename(),
@@ -229,7 +231,8 @@ defmodule HfHub.Download do
 
     * `:repo_id` - Repository ID
     * `:repo_type` - Type of repository. Defaults to `:model`.
-    * `:revision` - Git revision. Defaults to `"main"`.
+    * `:revision` - Git revision. Defaults to `"main"`. Branches and tags are
+      resolved to an immutable commit hash before files are listed or downloaded.
     * `:cache_dir` - Local cache directory.
     * `:ignore_patterns` - List of glob patterns to ignore
     * `:allow_patterns` - List of glob patterns to allow
@@ -250,18 +253,33 @@ defmodule HfHub.Download do
   def snapshot_download(opts) do
     repo_id = Keyword.fetch!(opts, :repo_id)
     repo_type = Keyword.get(opts, :repo_type, :model)
-    revision = Keyword.get(opts, :revision, "main")
+    requested_revision = Keyword.get(opts, :revision, "main")
     token = Keyword.get(opts, :token)
     ignore_patterns = Keyword.get(opts, :ignore_patterns, [])
     allow_patterns = Keyword.get(opts, :allow_patterns, [])
 
-    snapshot_path = HfHub.FS.repo_path(repo_id, repo_type)
-
-    with {:ok, files} <-
-           HfHub.Api.list_files(repo_id, repo_type: repo_type, revision: revision, token: token),
+    with {:ok, resolved_revision} <-
+           Revision.resolve(repo_id,
+             repo_type: repo_type,
+             revision: requested_revision,
+             token: token
+           ),
+         {:ok, files} <-
+           HfHub.Api.list_files(repo_id,
+             repo_type: repo_type,
+             revision: resolved_revision.resolved,
+             token: token
+           ),
          filtered_files <- filter_files(files, ignore_patterns, allow_patterns),
-         :ok <- download_all_files(repo_id, repo_type, revision, filtered_files, token) do
-      {:ok, Path.join(snapshot_path, "snapshots/#{revision}")}
+         :ok <-
+           download_all_files(
+             repo_id,
+             repo_type,
+             resolved_revision.resolved,
+             filtered_files,
+             token
+           ) do
+      {:ok, HfHub.FS.snapshot_path(repo_id, repo_type, resolved_revision.resolved)}
     end
   end
 

@@ -216,7 +216,7 @@ defmodule HfHub.Commit.LfsUpload do
            body: content,
            headers: req_headers,
            receive_timeout: lfs_upload_timeout(opts),
-           pool_timeout: lfs_pool_timeout(opts)
+           finch: [pool_timeout: lfs_pool_timeout(opts)]
          ) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
@@ -285,7 +285,7 @@ defmodule HfHub.Commit.LfsUpload do
   end
 
   defp do_chunk(content, chunk_size, acc) do
-    <<chunk::binary-size(chunk_size), rest::binary>> = content
+    <<chunk::binary-size(^chunk_size), rest::binary>> = content
     do_chunk(rest, chunk_size, [chunk | acc])
   end
 
@@ -315,7 +315,7 @@ defmodule HfHub.Commit.LfsUpload do
     case Req.put(url,
            body: chunk,
            receive_timeout: lfs_upload_timeout(opts),
-           pool_timeout: lfs_pool_timeout(opts)
+           finch: [pool_timeout: lfs_pool_timeout(opts)]
          ) do
       {:ok, %{status: 200, headers: headers}} ->
         etag = get_header(headers, "etag")
@@ -379,7 +379,7 @@ defmodule HfHub.Commit.LfsUpload do
            json: body,
            headers: LFS.lfs_headers(),
            receive_timeout: lfs_upload_timeout(opts),
-           pool_timeout: lfs_pool_timeout(opts)
+           finch: [pool_timeout: lfs_pool_timeout(opts)]
          ) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok
@@ -413,7 +413,7 @@ defmodule HfHub.Commit.LfsUpload do
            json: body,
            headers: req_headers,
            receive_timeout: lfs_upload_timeout(opts),
-           pool_timeout: lfs_pool_timeout(opts)
+           finch: [pool_timeout: lfs_pool_timeout(opts)]
          ) do
       {:ok, %{status: status}} when status in [200, 201] ->
         :ok

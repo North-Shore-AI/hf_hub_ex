@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-20
+
+### Added
+- `HfHub.Revision.resolve/2` and `HfHub.resolve_revision/2` resolve branch/tag
+  names to the Hub's full immutable commit hash and cache the mapping under
+  `refs/`.
+- `HfHub.FS.snapshot_path/3`, `ref_path/3`, `read_ref/3`, and `write_ref/4`
+  expose the commit-keyed snapshot/ref cache primitives needed by reproducible
+  artifact loaders.
+- Cache-only revision resolution via `local_files_only: true`; configured
+  offline mode uses the same cached-ref path.
+- Guide for commit-pinned model/artifact downloads and SHA-256 verification.
+
+### Changed
+- `HfHub.Download.snapshot_download/1` now resolves mutable revisions before
+  listing or downloading files and returns a `snapshots/<commit-hash>` path.
+  This removes the race where `main` could move between listing and download.
+
+- Refresh direct Hex dependencies to their current stable release lines and
+  regenerate the lockfile from a clean solve, including Req 0.7, Explorer 0.12,
+  YAML Elixir 2.12, and current quality tooling.
+- Raise the supported Elixir floor to 1.17 and refresh CI coverage through
+  Elixir 1.20 / OTP 29.
+- Move Mix CLI environment configuration to the project module's CLI configuration function for current
+  Mix compatibility and clean Elixir 1.20 warnings in the LFS chunker.
+
 ## [0.3.1] - 2026-05-21
 
 ### Fixed

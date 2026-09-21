@@ -1,6 +1,8 @@
 defmodule HfHub.DownloadTest do
   use ExUnit.Case, async: false
 
+  @commit "0123456789abcdef0123456789abcdef01234567"
+
   setup do
     bypass = Bypass.open()
     Application.put_env(:hf_hub, :endpoint, "http://localhost:#{bypass.port}")
@@ -263,13 +265,14 @@ defmodule HfHub.DownloadTest do
   describe "snapshot_download/1" do
     test "downloads all files in repository", %{bypass: bypass, cache_dir: cache_dir} do
       # Mock the API file listing
-      Bypass.expect_once(bypass, "GET", "/api/models/test-repo", fn conn ->
+      Bypass.expect(bypass, "GET", "/api/models/test-repo", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
           200,
           Jason.encode!(%{
             id: "test-repo",
+            sha: @commit,
             siblings: [
               %{rfilename: "config.json", size: 100},
               %{rfilename: "model.bin", size: 200}
@@ -279,11 +282,11 @@ defmodule HfHub.DownloadTest do
       end)
 
       # Mock the file downloads
-      Bypass.expect(bypass, "GET", "/test-repo/resolve/main/config.json", fn conn ->
+      Bypass.expect(bypass, "GET", "/test-repo/resolve/#{@commit}/config.json", fn conn ->
         Plug.Conn.resp(conn, 200, ~s({"model": "test"}))
       end)
 
-      Bypass.expect(bypass, "GET", "/test-repo/resolve/main/model.bin", fn conn ->
+      Bypass.expect(bypass, "GET", "/test-repo/resolve/#{@commit}/model.bin", fn conn ->
         Plug.Conn.resp(conn, 200, "binary model data")
       end)
 
@@ -294,17 +297,18 @@ defmodule HfHub.DownloadTest do
                )
 
       assert String.contains?(snapshot_path, cache_dir)
-      assert String.ends_with?(snapshot_path, "snapshots/main")
+      assert String.ends_with?(snapshot_path, "snapshots/#{@commit}")
     end
 
     test "respects ignore_patterns", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/test-repo", fn conn ->
+      Bypass.expect(bypass, "GET", "/api/models/test-repo", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
           200,
           Jason.encode!(%{
             id: "test-repo",
+            sha: @commit,
             siblings: [
               %{rfilename: "config.json", size: 100},
               %{rfilename: "model.safetensors", size: 1000},
@@ -315,7 +319,7 @@ defmodule HfHub.DownloadTest do
       end)
 
       # Only config.json should be downloaded (*.bin and *.safetensors ignored)
-      Bypass.expect_once(bypass, "GET", "/test-repo/resolve/main/config.json", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/test-repo/resolve/#{@commit}/config.json", fn conn ->
         Plug.Conn.resp(conn, 200, "{}")
       end)
 
@@ -328,13 +332,14 @@ defmodule HfHub.DownloadTest do
     end
 
     test "respects allow_patterns", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/models/test-repo", fn conn ->
+      Bypass.expect(bypass, "GET", "/api/models/test-repo", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.resp(
           200,
           Jason.encode!(%{
             id: "test-repo",
+            sha: @commit,
             siblings: [
               %{rfilename: "config.json", size: 100},
               %{rfilename: "README.md", size: 50},
@@ -345,7 +350,7 @@ defmodule HfHub.DownloadTest do
       end)
 
       # Only .json files should be downloaded
-      Bypass.expect_once(bypass, "GET", "/test-repo/resolve/main/config.json", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/test-repo/resolve/#{@commit}/config.json", fn conn ->
         Plug.Conn.resp(conn, 200, "{}")
       end)
 

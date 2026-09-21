@@ -18,7 +18,7 @@
 ## Features
 
 - Hub metadata APIs for models, datasets, and Spaces
-- Downloads, snapshots, local cache helpers, and offline mode
+- Downloads, immutable commit-pinned snapshots, local cache helpers, and offline mode
 - Repository management: create, delete, move, settings, existence checks
 - Commit API: upload files/folders, regular payloads, Git LFS, multipart LFS
 - Git refs: branches, tags, commits, and super-squash
@@ -30,7 +30,7 @@
 ```elixir
 def deps do
   [
-    {:hf_hub, "~> 0.3.0"}
+    {:hf_hub, "~> 0.4.0"}
   ]
 end
 ```
@@ -48,6 +48,7 @@ Start here for production-oriented usage:
 - [Authentication and runtime configuration](guides/auth_and_runtime_config.md)
 - [Uploads and LFS](guides/uploads_and_lfs.md)
 - [Git refs, branches, tags, and releases](guides/git_refs_and_tags.md)
+- [Immutable revisions and reproducible model artifacts](guides/immutable_revisions.md)
 - [Roadmap / Python parity notes](docs/ROADMAP.md)
 
 ## Quick start
@@ -158,6 +159,24 @@ POST /api/datasets/my-org/my-artifact-bundle/tag/main
 config = File.read!(path)
 ```
 
+### Pin a mutable revision to a commit
+
+```elixir
+{:ok, revision} = HfHub.resolve_revision("org/model", revision: "main")
+
+{:ok, path} =
+  HfHub.Download.hf_hub_download(
+    repo_id: "org/model",
+    filename: "model.safetensors",
+    revision: revision.resolved,
+    expected_sha256: expected_sha256
+  )
+```
+
+`HfHub.Download.snapshot_download/1` performs this resolution automatically and
+returns a `snapshots/<commit-hash>` path. See
+[Immutable revisions and reproducible model artifacts](guides/immutable_revisions.md).
+
 ### Offline/cache helpers
 
 ```elixir
@@ -210,6 +229,13 @@ Git refs and release helpers:
 - `list_refs/2`
 - `list_commits/2`
 - `super_squash/2`
+
+### `HfHub.Revision`
+
+Immutable revision helpers:
+
+- `resolve/2`
+- `commit_hash?/1`
 
 ### `HfHub.Download`
 
